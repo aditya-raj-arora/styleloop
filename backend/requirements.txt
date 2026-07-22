@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy>=2
+alembic
+pydantic-settings
+psycopg2-binary
+python-multipart
+redis
+rq
