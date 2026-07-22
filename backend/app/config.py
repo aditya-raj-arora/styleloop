@@ -40,6 +40,9 @@ class Settings(BaseSettings):
 
     # --- CORS ---
     FRONTEND_ORIGIN: str = "http://localhost:5173"
+    # Additionally allow origins matching this regex (full-matched against the
+    # Origin header) — used to permit Vercel preview deployments. Blank disables it.
+    FRONTEND_ORIGIN_REGEX: str = r"https://styleloop-[a-z0-9-]+\.vercel\.app"
 
     @field_validator("DATABASE_URL")
     @classmethod
