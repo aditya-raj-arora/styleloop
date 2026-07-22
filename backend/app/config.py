@@ -58,5 +58,16 @@ class Settings(BaseSettings):
             v = "postgresql+psycopg2://" + v[len("postgresql://") :]
         return v
 
+    @field_validator("FRONTEND_ORIGIN")
+    @classmethod
+    def _strip_trailing_slash(cls, v: str) -> str:
+        """Normalize the CORS origin.
+
+        Browsers send the `Origin` header with no trailing slash and no path, so a
+        stray slash in the env var (e.g. `https://app.vercel.app/`) would silently
+        fail CORS matching. Strip it so the value matches what browsers actually send.
+        """
+        return v.rstrip("/")
+
 
 settings = Settings()
