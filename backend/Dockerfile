@@ -20,4 +20,6 @@ COPY . .
 EXPOSE 8000
 
 # Slow work runs in the RQ worker (see app/workers/tasks.py), not the web process.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Shell form so ${PORT} (injected by Railway/most PaaS) is expanded; falls back to
+# 8000 locally. The RQ worker uses a different command: python -m app.workers.run
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

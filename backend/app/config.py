@@ -5,6 +5,7 @@ without a populated .env. Real secrets are supplied via .env or the deployment
 environment and must never be committed.
 """
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -39,6 +40,23 @@ class Settings(BaseSettings):
 
     # --- CORS ---
     FRONTEND_ORIGIN: str = "http://localhost:5173"
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        """Ensure SQLAlchemy uses the psycopg2 driver.
+
+        Managed Postgres providers (Railway, Heroku, ...) hand out `postgres://`
+        or `postgresql://` URLs, but our engine is configured for psycopg2. Rewrite
+        the scheme so the app boots against those URLs unchanged. URLs that already
+        name a driver (e.g. `postgresql+psycopg2://`, `postgresql+asyncpg://`) are
+        left untouched.
+        """
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://") :]
+        if v.startswith("postgresql://"):
+            v = "postgresql+psycopg2://" + v[len("postgresql://") :]
+        return v
 
 
 settings = Settings()
