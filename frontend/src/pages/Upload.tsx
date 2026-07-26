@@ -1,27 +1,42 @@
 import { UploadCloud } from "lucide-react";
 import Navbar from "../components/Navbar";
-
+import UploadBackground from "../components/uploadBackground";
 
 export default function Upload() {
   return (
-    <>
-      <div className="p-5">
+    <UploadBackground>
 
-        <h2 className="text-2xl font-bold mb-5">
+      <div className="p-6 pb-24">
+
+        <h1 className="text-4xl font-bold text-gray-800">
           Upload Garment
-        </h2>
+        </h1>
 
-        <div className="border-2 border-dashed rounded-2xl p-12 text-center">
-          <UploadCloud size={50} className="mx-auto" />
+        <p className="text-gray-600 mt-2 mb-8">
+          Add a new clothing item to your wardrobe.
+        </p>
 
-          <p className="mt-3">
-            Click here to upload clothing
+        <div className="bg-white/50 backdrop-blur-xl border-2 border-dashed border-gray-300 rounded-3xl p-16 text-center shadow-xl hover:border-blue-400 transition-all duration-300">
+
+          <UploadCloud
+            size={60}
+            className="mx-auto text-blue-500"
+          />
+
+          <p className="mt-5 text-lg font-medium text-gray-700">
+            Click or Drag & Drop
           </p>
+
+          <p className="text-sm text-gray-500 mt-2">
+            JPG • PNG • WEBP
+          </p>
+
         </div>
 
       </div>
 
       <Navbar />
-    </>
+
+    </UploadBackground>
   );
 }
