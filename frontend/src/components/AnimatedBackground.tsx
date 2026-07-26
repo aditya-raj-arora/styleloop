@@ -27,30 +27,25 @@ export default function AnimatedBackground({ children }: Props) {
   }, []);
 
   let bgClass = "";
-  let greeting = "";
   let showClouds = false;
   let showStars = false;
   let showSun = false;
   let showMoon = false;
 
   if (hour >= 5 && hour < 12) {
-    greeting = "Good Morning";
     bgClass =
       "bg-gradient-to-b from-sky-400 via-sky-300 to-cyan-100";
     showClouds = true;
   } else if (hour >= 12 && hour < 17) {
-    greeting = "Good Afternoon";
     bgClass =
       "bg-gradient-to-b from-orange-500 via-amber-300 to-yellow-100";
     showSun = true;
     showClouds = true;
   } else if (hour >= 17 && hour < 20) {
-    greeting = "Good Evening";
     bgClass =
       "bg-gradient-to-b from-orange-600 via-pink-500 to-purple-800";
     showSun = true;
   } else {
-    greeting = "Good Night";
     bgClass =
       "bg-gradient-to-b from-slate-950 via-blue-950 to-black";
     showStars = true;
