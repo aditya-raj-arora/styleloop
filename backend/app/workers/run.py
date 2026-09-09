@@ -14,8 +14,7 @@ from redis import Redis
 from rq import Worker
 
 from app.config import settings
-
-QUEUE_NAME = "styleloop"
+from app.queue import QUEUE_NAME
 
 _VALID_SCHEMES = {"redis", "rediss", "unix"}
 

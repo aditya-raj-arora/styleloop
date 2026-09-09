@@ -69,3 +69,9 @@ def upload_bytes(key: str, data: bytes, content_type: str) -> None:
     _client().put_object(
         Bucket=settings.STORAGE_BUCKET, Key=key, Body=data, ContentType=content_type
     )
+
+
+def download_bytes(key: str) -> bytes:
+    """Download an object's bytes server-side (used by the worker). Never log the result."""
+    obj = _client().get_object(Bucket=settings.STORAGE_BUCKET, Key=key)
+    return obj["Body"].read()

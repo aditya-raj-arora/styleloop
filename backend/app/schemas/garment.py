@@ -45,3 +45,9 @@ class TagUpdate(BaseModel):
     fabric: str | None = None
     season: str | None = None
     formality: str | None = None
+
+
+class StateUpdate(BaseModel):
+    """Laundry state transition. `state` is one of "clean" | "worn" | "laundry"."""
+
+    state: str

@@ -1,6 +1,21 @@
 import { useState } from "react";
-import GarmentCard from "../components/GarmentCard";
 import Navbar from "../components/Navbar";
+
+// NOTE(Dev C): this page swipes on *outfits* (mock for now — Sprint 2 wires
+// GET /outfits/daily), not single garments, so it doesn't reuse GarmentCard —
+// that component is now typed to the real single-Garment API shape from the
+// Sprint 1 upload pipeline. Swap this local card for real outfit data when
+// the rotation engine lands.
+function MockOutfitCard({ image, title }: { image: string; title: string }) {
+  return (
+    <div className="rounded-2xl overflow-hidden shadow-lg">
+      <img src={image} alt={title} className="w-full h-[420px] object-cover" />
+      <div className="p-4 bg-black text-white">
+        <h2>{title}</h2>
+      </div>
+    </div>
+  );
+}
 
 const outfits = [
   {
@@ -27,7 +42,7 @@ export default function Swipe() {
   return (
     <>
       <div className="p-5">
-        <GarmentCard
+        <MockOutfitCard
           image={outfits[index].image}
           title={outfits[index].title}
         />
