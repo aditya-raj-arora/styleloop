@@ -1,20 +1,16 @@
-interface Props {
-  image: string;
-  title: string;
-}
+// GarmentCard — stub.
+// Renders one garment from the frozen Garment contract. Shows a placeholder while
+// processed_url is null (worker still processing bg-removal + tagging).
 
-export default function GarmentCard({ image, title }: Props) {
+import type { Garment } from "../api/client";
+
+export default function GarmentCard({ garment }: { garment: Garment }) {
+  const imageSrc = garment.processed_url ?? garment.image_url;
   return (
-    <div className="rounded-2xl overflow-hidden shadow-lg">
-      <img
-        src={image}
-        alt={title}
-        className="w-full h-[420px] object-cover"
-      />
-
-      <div className="p-4 bg-black text-white">
-        <h2>{title}</h2>
-      </div>
-    </div>
+    <article>
+      {/* TODO(Frontend): real card layout, tag chips, state badge, wear count. */}
+      <img src={imageSrc} alt={garment.category ?? "garment"} />
+      <p>{garment.processed_url ? garment.category ?? "Untagged" : "Processing…"}</p>
+    </article>
   );
 }
