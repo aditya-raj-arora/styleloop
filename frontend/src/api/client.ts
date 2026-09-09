@@ -25,6 +25,18 @@ export interface Garment {
   created_at: string;
 }
 
+// Mirrors backend/app/schemas/auth.py.
+export interface Token {
+  access_token: string;
+  token_type: string;
+}
+
+export interface User {
+  id: number;
+  email: string;
+  created_at: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -46,7 +58,32 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   const response = await fetch(`${BASE_URL}${path}`, { ...init, headers });
   if (!response.ok) {
-    throw new ApiError(response.status, `Request failed: ${response.status}`);
+    let detail = `Request failed: ${response.status}`;
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body.detail) detail = body.detail;
+    } catch {
+      // Non-JSON error body — fall back to the generic message above.
+    }
+    throw new ApiError(response.status, detail);
   }
   return (await response.json()) as T;
+}
+
+export function signup(email: string, password: string): Promise<Token> {
+  return apiFetch<Token>("/auth/signup", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function login(email: string, password: string): Promise<Token> {
+  return apiFetch<Token>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function getCurrentUser(): Promise<User> {
+  return apiFetch<User>("/auth/me");
 }

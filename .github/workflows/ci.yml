@@ -13,6 +13,22 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: styleloop
+          POSTGRES_PASSWORD: styleloop
+          POSTGRES_DB: styleloop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U styleloop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+psycopg2://styleloop:styleloop@localhost:5432/styleloop
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +45,9 @@ jobs:
 
       - name: Lint (ruff)
         run: ruff check .
+
+      - name: Migrate DB (alembic upgrade head)
+        run: alembic upgrade head
 
       - name: Test (pytest)
         run: pytest -q
