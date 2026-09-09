@@ -1,4 +1,4 @@
-# StyleLoop
+# VogueVault
 
 An AI wardrobe manager. Users upload their clothes; the app auto-tags them, tracks
 laundry state, and generates fresh, weather-aware, non-repeating daily outfit
@@ -77,7 +77,7 @@ docker compose up -d          # Postgres 16 + Redis 7
 ## Repo layout
 
 ```
-styleloop/
+voguevault/
   backend/      FastAPI app, models, routers (stubbed), services (stubbed), worker, tests
   frontend/     React + TS + Vite shell (pages/components stubbed)
   docs/         TASKS.md and planning docs
