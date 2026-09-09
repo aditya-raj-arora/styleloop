@@ -1,4 +1,4 @@
-# VogueVault — Sprints & Task Breakdown
+# StyleLoop — Sprints & Task Breakdown
 
 > **Sprint numbering:** the scaffold already on `main` (models, API skeleton,
 > frontend shell, green CI/CD) is **Sprint 0 — Foundation (✅ done)**. Everything

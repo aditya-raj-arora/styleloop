@@ -1,4 +1,4 @@
-// Thin fetch wrapper around the VogueVault API.
+// Thin fetch wrapper around the StyleLoop API.
 //
 // `Garment` mirrors the FROZEN CONTRACT defined by the backend at
 // backend/app/schemas/garment.py::GarmentOut. Keep these in lockstep.
