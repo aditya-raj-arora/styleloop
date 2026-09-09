@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
+import RequireAuth from "./components/RequireAuth";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import Swipe from "./pages/Swipe";
@@ -13,10 +14,38 @@ export default function App() {
       <Navbar />
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/wardrobe" element={<Wardrobe />} />
-        <Route path="/upload" element={<Upload />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/swipe" element={<Swipe />} />
+        <Route
+          path="/wardrobe"
+          element={
+            <RequireAuth>
+              <Wardrobe />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/upload"
+          element={
+            <RequireAuth>
+              <Upload />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/swipe"
+          element={
+            <RequireAuth>
+              <Swipe />
+            </RequireAuth>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

@@ -6,9 +6,9 @@ suggestions via a novelty-optimizing rotation engine with swipe feedback. A late
 release adds virtual try-on (rendering outfits on the user's photo via the FASHN API
 through fal.ai).
 
-> **Sprint-1 status:** This is scaffolding only — real models, a running API skeleton,
-> a typed frontend shell, and CI/CD. Business logic is stubbed with clear TODOs. The ML
-> and auth logic are intentionally **not** implemented yet.
+> **Sprint-1 status:** Auth (`/auth/signup`, `/auth/login`, `/auth/me`, JWT bearer
+> tokens) is implemented. Upload/tagging, weather, and rotation are still stubbed
+> with clear TODOs — see [docs/TASKS.md](docs/TASKS.md) for the in-progress breakdown.
 
 ## Architecture
 
@@ -54,6 +54,8 @@ python -m venv .venv
 # POSIX:    source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env          # then fill in real values
+docker compose up -d          # Postgres + Redis (see "Local infra" below)
+alembic upgrade head          # create tables
 ruff check .
 pytest -q
 uvicorn app.main:app --reload
@@ -71,7 +73,8 @@ npm run dev                   # http://localhost:5173
 ## Local infra
 
 ```bash
-docker compose up -d          # Postgres 16 + Redis 7
+docker compose up -d                    # Postgres 16 + Redis 7 + RQ worker
+docker compose --profile minio up -d    # ...plus local MinIO for object storage
 ```
 
 ## Repo layout

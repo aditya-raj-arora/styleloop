@@ -41,17 +41,17 @@ end-to-end.
 
 ### Dev A — `Backend/Infra` (Auth + platform)
 
-- [ ] **Initial Alembic migration** for all 4 tables; wire `alembic upgrade head`
+- [x] **Initial Alembic migration** for all 4 tables; wire `alembic upgrade head`
       into local bootstrap + CI (spin up a Postgres service in `ci.yml` backend job).
-- [ ] **Password hashing** (argon2 or bcrypt via `passlib`) + **JWT** issue/verify
+- [x] **Password hashing** (argon2 or bcrypt via `passlib`) + **JWT** issue/verify
       helpers reading `JWT_SECRET`/`JWT_ALGORITHM`/`JWT_EXPIRE_MINUTES`.
-- [ ] Implement **`POST /auth/signup`** and **`POST /auth/login`** → return a JWT.
-- [ ] **`get_current_user`** FastAPI dependency: decode `Authorization: Bearer`,
+- [x] Implement **`POST /auth/signup`** and **`POST /auth/login`** → return a JWT.
+- [x] **`get_current_user`** FastAPI dependency: decode `Authorization: Bearer`,
       load the `User`, 401 on failure. Export for B and C to reuse.
-- [ ] **Object storage adapter**: private bucket + presigned upload/download URLs
+- [x] **Object storage adapter**: private bucket + presigned upload/download URLs
       (S3 / Cloudflare R2 / local MinIO for dev). Never logs bytes or puts photos in URLs.
-- [ ] **docker-compose**: add a `worker` service (`rq worker`) and optional `minio`.
-- [ ] **Frontend**: Login/Signup form → auth endpoints; store JWT in `useAuth`
+- [x] **docker-compose**: add a `worker` service (`rq worker`) and optional `minio`.
+- [x] **Frontend**: Login/Signup form → auth endpoints; store JWT in `useAuth`
       (in-memory); `RequireAuth` wrapper redirecting unauthenticated users to `/`.
 - **Acceptance:** sign up → log in → call a protected endpoint with the Bearer
   token and get 200; migrations run clean in CI.
