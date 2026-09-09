@@ -29,6 +29,49 @@ services:
       timeout: 5s
       retries: 5
 
+  # RQ worker: bg-removal + tagging (Sprint 1), try-on rendering (Sprint 4). Runs
+  # the same image as the API but never serves HTTP — see app/workers/run.py.
+  worker:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.run"]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://styleloop:styleloop@postgres:5432/styleloop
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_ENDPOINT_URL: http://minio:9000
+      STORAGE_ACCESS_KEY: styleloop
+      STORAGE_SECRET_KEY: styleloop123
+      STORAGE_BUCKET: styleloop-media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Optional local S3-compatible storage for dev, matching the storage adapter's
+  # STORAGE_ENDPOINT_URL config (Cloudflare R2 in prod uses the same code path).
+  # Not started by a plain `docker compose up`; opt in with `--profile minio`.
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    profiles: ["minio"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: styleloop
+      MINIO_ROOT_PASSWORD: styleloop123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgdata:
   redisdata:
+  miniodata:

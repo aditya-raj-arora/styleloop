@@ -3,7 +3,11 @@ uvicorn[standard]
 sqlalchemy>=2
 alembic
 pydantic-settings
+email-validator
 psycopg2-binary
 python-multipart
 redis
 rq
+passlib[argon2]
+pyjwt
+boto3

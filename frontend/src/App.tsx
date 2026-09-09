@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
+import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Swipe from "./pages/Swipe";
@@ -11,10 +12,38 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/swipe" element={<Swipe />} />
-        <Route path="/upload" element={<Upload />} />
-        <Route path="/wardrobe" element={<Wardrobe />} />
+        <Route
+          path="/wardrobe"
+          element={
+            <RequireAuth>
+              <Wardrobe />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/upload"
+          element={
+            <RequireAuth>
+              <Upload />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <RequireAuth>
+              <Dashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/swipe"
+          element={
+            <RequireAuth>
+              <Swipe />
+            </RequireAuth>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
