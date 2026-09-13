@@ -56,6 +56,13 @@ async function _handleResponse<T>(response: Response): Promise<T> {
     } catch {
       // Non-JSON error body — fall back to the generic message above.
     }
+    if (response.status === 401) {
+      // Token is missing/expired/invalid — the persisted token now outlives
+      // a refresh, so without this the user would sit "logged in" while
+      // every request silently 401s. Clear it so RequireAuth sends them
+      // back to login instead.
+      useAuth.getState().clear();
+    }
     throw new ApiError(response.status, detail);
   }
   return (await response.json()) as T;
