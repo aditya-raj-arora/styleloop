@@ -1,6 +1,6 @@
-# Rotation scoring — design note (Sprint 1 spike)
+# Rotation scoring — design note (Sprint 1 spike → Sprint 2 engine)
 
-**Owner:** ML/Engine (Dev C) · **Status:** spike validated, ready for Sprint 2 integration
+**Owner:** ML/Engine (Dev C) · **Status:** scoring spike + candidate generation + persistence shipped
 
 ## Goal
 
@@ -47,18 +47,55 @@ This is *not* a substitute for real novelty optimization (Sprint 2's
 candidate search still needs to actually diversify garment combinations) —
 it's a cheap guarantee that ranking isn't perfectly static day to day.
 
-## What Sprint 2 still needs to do
+## Sprint 2: candidate generation + persistence
 
-- Candidate *generation* — this spike only scores a given outfit; searching
-  the space of valid combinations (one top + one bottom + optional outerwear,
-  etc.) over a user's `clean` garments is unbuilt.
-- Persisting scored `Outfit` rows (`generated_for`, `score`, `garment_ids`).
-- Wiring `taste_weights` up from real `FeedbackEvent` aggregation (Sprint 3
-  per `docs/TASKS.md`, though a naive Sprint 2 version — e.g. simple
-  like/dislike counts per category — would already slot into the existing
-  `taste_weights: dict[str, float]` parameter with no signature change).
-- Deciding how many candidates to score before picking the top `limit` — the
-  formula itself doesn't care, but performance at real wardrobe sizes does.
+`generate_candidates` (in `rotation.py`, tested in `test_rotation.py`) builds
+the search space this spike didn't need to: valid outfit *shapes* over a
+user's tagged, `clean` garments —
+
+- **top + bottom**, or a **dress** alone, as the required base;
+- **+ outerwear** only when `weather.temp_c` is below the same cold threshold
+  `score_outfit`'s `validity` term already uses (no separate knob);
+- **+ shoes** whenever any are available.
+
+Every base combination (each top × each bottom, plus each dress) is expanded
+with those optional slots, scored via `score_outfit`, and sorted. The top
+`limit` are returned with **no shared garment across them**, so "3 candidates"
+really are 3 distinct outfits rather than the same one with a shoe swapped.
+
+`exclude_combo` (an exact garment-id set, e.g. today's current outfit) lets
+"regenerate" ask for something else: it's skipped when ranking, but only
+removes an *exact* match — a small wardrobe (one pair of shoes, one bottom)
+may not have a fully disjoint alternative, and this still rotates whatever
+part of the outfit *can* change instead of erroring out.
+
+This all stays a pure function — `generate_outfits(user_id, day, weather,
+garments, ...)` takes an already-fetched `list[ScoringGarment]` and returns
+`list[(garment_ids, score)]`, no DB access. `backend/app/routers/outfits.py`
+owns the I/O:
+
+- `GET /outfits/daily` returns the existing row for today if one exists
+  (generate-once-per-day, idempotent on refresh), else generates and
+  persists the top-1 candidate.
+- `POST /outfits/generate` always generates again, passing today's existing
+  outfit (if any) as `exclude_combo` — the "regenerate" button.
+- `POST /outfits/{id}/feedback` and `POST /outfits/{id}/wear` are unchanged
+  from the Sprint 1 stub shape (record a `FeedbackEvent`; bump
+  `wear_count`/`last_worn_at`/`state` on each garment in the outfit).
+
+Untagged garments (`category is None`) are excluded from the candidate pool —
+the engine can't place something it doesn't know the shape of yet.
+
+## Still open (Sprint 3+)
+
+- `taste_weights` is wired as a parameter throughout but nothing populates it
+  yet — Sprint 3 aggregates real weights from `FeedbackEvent` history.
+- Lat/lon come from the browser's geolocation when granted, else fall back to
+  a fixed default city (`settings.DEFAULT_LAT`/`DEFAULT_LON`) — no per-user
+  saved location yet.
+- Candidate volume is small (a handful of tops × bottoms, optionally ×
+  outerwear × shoes) — fine at demo-wardrobe sizes; revisit if real wardrobes
+  make the full cross-product expensive.
 
 ## Validated by
 

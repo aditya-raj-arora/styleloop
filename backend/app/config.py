@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     OPENWEATHER_API_KEY: str = ""
     FASHN_API_KEY: str = ""
 
+    # --- Rotation engine (services/rotation.py, routers/outfits.py) ---
+    # Fallback coordinates for GET /outfits/daily and POST /outfits/generate
+    # when the client doesn't supply lat/lon (e.g. geolocation denied) —
+    # defaults to New York City so weather-awareness degrades gracefully
+    # instead of failing the request outright.
+    DEFAULT_LAT: float = 40.7128
+    DEFAULT_LON: float = -74.0060
+
     # --- Vision tagging (Gemini API) ---
     # Used by services.tagging for category/pattern/fabric/season/formality
     # zero-shot classification. Blank disables vision tagging (colors are still

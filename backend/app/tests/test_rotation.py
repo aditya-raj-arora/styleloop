@@ -6,7 +6,12 @@ and docs/rotation-scoring-design-note.md for the design writeup.
 
 from datetime import date, timedelta
 
-from app.services.rotation import ScoringGarment, score_outfit
+from app.services.rotation import (
+    ScoringGarment,
+    generate_candidates,
+    generate_outfits,
+    score_outfit,
+)
 
 _TODAY = date(2026, 1, 15)
 _MILD_WEATHER = {"temp_c": 18.0, "condition": "Clear", "rain": False}
@@ -131,3 +136,107 @@ def test_jitter_varies_across_users_for_the_same_day() -> None:
     score_user_a = score_outfit(outfit, weather=_MILD_WEATHER, today=_TODAY, user_id=1)
     score_user_b = score_outfit(outfit, weather=_MILD_WEATHER, today=_TODAY, user_id=2)
     assert score_user_a != score_user_b
+
+
+# --- generate_candidates / generate_outfits (Sprint 2 candidate search) -----
+
+
+def test_no_candidates_without_a_top_bottom_or_dress() -> None:
+    wardrobe = [_garment(id=1, category="shoes"), _garment(id=2, category="outerwear")]
+    candidates = generate_candidates(wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1)
+    assert candidates == []
+
+
+def test_top_and_bottom_form_a_candidate() -> None:
+    wardrobe = [_garment(id=1, category="top"), _garment(id=2, category="bottom")]
+    candidates = generate_candidates(wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1)
+    assert len(candidates) == 1
+    assert set(candidates[0][0]) == {1, 2}
+
+
+def test_dress_alone_forms_a_candidate() -> None:
+    wardrobe = [_garment(id=1, category="dress")]
+    candidates = generate_candidates(wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1)
+    assert len(candidates) == 1
+    assert candidates[0][0] == (1,)
+
+
+def test_shoes_are_added_when_available() -> None:
+    wardrobe = [
+        _garment(id=1, category="top"),
+        _garment(id=2, category="bottom"),
+        _garment(id=3, category="shoes"),
+    ]
+    candidates = generate_candidates(wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1)
+    assert set(candidates[0][0]) == {1, 2, 3}
+
+
+def test_outerwear_added_only_when_cold() -> None:
+    wardrobe = [
+        _garment(id=1, category="top"),
+        _garment(id=2, category="bottom"),
+        _garment(id=3, category="outerwear"),
+    ]
+    mild = generate_candidates(wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1)
+    cold = generate_candidates(wardrobe, weather=_COLD_WEATHER, today=_TODAY, user_id=1)
+    assert 3 not in mild[0][0]
+    assert 3 in cold[0][0]
+
+
+def test_candidates_do_not_share_garments() -> None:
+    wardrobe = [
+        _garment(id=1, category="top"),
+        _garment(id=2, category="top"),
+        _garment(id=3, category="bottom"),
+        _garment(id=4, category="bottom"),
+    ]
+    candidates = generate_candidates(
+        wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1, limit=3
+    )
+    seen: set[int] = set()
+    for ids, _score in candidates:
+        assert seen.isdisjoint(ids)
+        seen.update(ids)
+
+
+def test_exclude_combo_is_preferred_but_not_absolute() -> None:
+    # Only one valid combo exists — excluding it can't remove it, so the
+    # fallback path (return it anyway) has to kick in.
+    wardrobe = [_garment(id=1, category="top"), _garment(id=2, category="bottom")]
+    candidates = generate_candidates(
+        wardrobe,
+        weather=_MILD_WEATHER,
+        today=_TODAY,
+        user_id=1,
+        exclude_combo=frozenset({1, 2}),
+    )
+    assert len(candidates) == 1
+    assert set(candidates[0][0]) == {1, 2}
+
+
+def test_exclude_combo_picks_a_different_combo_when_one_exists() -> None:
+    wardrobe = [
+        _garment(id=1, category="top", wear_count=0),
+        _garment(id=2, category="top", wear_count=0),
+        _garment(id=3, category="bottom", wear_count=0),
+    ]
+    without_exclusion = generate_candidates(
+        wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1
+    )
+    previous_combo = frozenset(without_exclusion[0][0])
+
+    candidates = generate_candidates(
+        wardrobe,
+        weather=_MILD_WEATHER,
+        today=_TODAY,
+        user_id=1,
+        exclude_combo=previous_combo,
+    )
+    assert frozenset(candidates[0][0]) != previous_combo
+
+
+def test_generate_outfits_delegates_to_generate_candidates() -> None:
+    wardrobe = [_garment(id=1, category="top"), _garment(id=2, category="bottom")]
+    candidates = generate_outfits(1, _TODAY, _MILD_WEATHER, wardrobe)
+    assert len(candidates) == 1
+    assert set(candidates[0][0]) == {1, 2}

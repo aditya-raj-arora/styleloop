@@ -24,8 +24,12 @@ can wire it into `generate_outfits` with confidence instead of designing the
 scoring math and the real integration at the same time. See
 docs/rotation-scoring-design-note.md for the full writeup.
 
-`generate_outfits` itself (candidate generation over real 'clean' garments,
-persistence) is Sprint 2 scope and still stubbed here.
+`generate_outfits`/`generate_candidates` (Sprint 2) implement the candidate
+search: build valid outfit shapes (top+bottom, or a dress; plus outerwear/shoes
+when available) from caller-supplied 'clean' garments, score each with
+`score_outfit`, and return the best non-overlapping combinations. They stay
+pure (no DB) — the `/outfits` router owns fetching garments and persisting the
+winner as an `Outfit` row.
 """
 
 from __future__ import annotations
@@ -153,7 +157,123 @@ def score_outfit(
     )
 
 
-def generate_outfits(user_id: int, day, weather: dict, limit: int = 3) -> list:
-    # TODO(ML/Engine, Sprint 2): candidate search over real 'clean' garments,
-    #   scored via score_outfit above, persisted as Outfit rows.
-    raise NotImplementedError
+_TOP = "top"
+_BOTTOM = "bottom"
+_DRESS = "dress"
+_OUTERWEAR = "outerwear"
+_SHOES = "shoes"
+
+
+def _base_combinations(
+    garments: tuple[ScoringGarment, ...],
+) -> list[tuple[ScoringGarment, ...]]:
+    """A valid outfit needs a top+bottom OR a dress — nothing else on its own
+    is a complete outfit. Both shapes are candidates; scoring (not this
+    function) decides which one wins."""
+    tops = [g for g in garments if g.category == _TOP]
+    bottoms = [g for g in garments if g.category == _BOTTOM]
+    dresses = [g for g in garments if g.category == _DRESS]
+
+    combos = [(top, bottom) for top in tops for bottom in bottoms]
+    combos += [(dress,) for dress in dresses]
+    return combos
+
+
+def generate_candidates(
+    garments: list[ScoringGarment],
+    *,
+    weather: dict,
+    today: date,
+    user_id: int,
+    taste_weights: dict[str, float] | None = None,
+    limit: int = 3,
+    exclude_combo: frozenset[int] | None = None,
+) -> list[tuple[tuple[int, ...], float]]:
+    """Rank candidate outfits over `garments` (already filtered to 'clean' by
+    the caller) and return up to `limit` as `(garment_ids, score)`, best
+    first. Candidates never share a garment with each other, so the list is
+    genuinely `limit` distinct suggestions, not `limit` near-duplicates.
+
+    `exclude_combo` is the *exact* garment-id set of an outfit to skip (e.g.
+    today's current suggestion) — used by "regenerate" to avoid repeating the
+    same combination verbatim. It only rules out an exact match, not anything
+    sharing a garment with it, since a small wardrobe may not have a fully
+    disjoint alternative (e.g. only one pair of shoes) but can still rotate
+    the rest.
+
+    Pure function: no DB, no I/O. The router owns fetching 'clean' garments
+    and persisting the winning combination as an `Outfit` row.
+    """
+    garments_key = tuple(garments)
+    base = _base_combinations(garments_key)
+    if not base:
+        return []
+
+    outerwear = [g for g in garments_key if g.category == _OUTERWEAR]
+    shoes = [g for g in garments_key if g.category == _SHOES]
+    wants_outerwear = (
+        weather.get("temp_c") is not None and weather["temp_c"] < _COLD_THRESHOLD_C
+    )
+
+    full_combos: list[tuple[ScoringGarment, ...]] = []
+    for base_combo in base:
+        variants = [base_combo]
+        if wants_outerwear and outerwear:
+            variants = [combo + (jacket,) for combo in variants for jacket in outerwear]
+        if shoes:
+            variants = [combo + (shoe,) for combo in variants for shoe in shoes]
+        full_combos.extend(variants)
+
+    scored = [
+        (
+            combo,
+            score_outfit(
+                list(combo),
+                weather=weather,
+                today=today,
+                user_id=user_id,
+                taste_weights=taste_weights,
+            ),
+        )
+        for combo in full_combos
+    ]
+    scored.sort(key=lambda pair: pair[1], reverse=True)
+
+    fresh = [(combo, s) for combo, s in scored if {g.id for g in combo} != exclude_combo]
+    ranked = fresh or scored  # excluding everything left nothing — fall back to the full ranking
+
+    selected: list[tuple[tuple[int, ...], float]] = []
+    seen_ids: set[int] = set()
+    for combo, s in ranked:
+        ids = tuple(g.id for g in combo)
+        if seen_ids & set(ids):
+            continue  # keep the suggestions distinct — no garment reused across candidates
+        selected.append((ids, s))
+        seen_ids.update(ids)
+        if len(selected) >= limit:
+            break
+
+    return selected
+
+
+def generate_outfits(
+    user_id: int,
+    day: date,
+    weather: dict,
+    garments: list[ScoringGarment],
+    *,
+    limit: int = 3,
+    taste_weights: dict[str, float] | None = None,
+    exclude_combo: frozenset[int] | None = None,
+) -> list[tuple[tuple[int, ...], float]]:
+    """Public entry point used by the `/outfits` router. Thin wrapper around
+    `generate_candidates` — see there for the ranking algorithm."""
+    return generate_candidates(
+        garments,
+        weather=weather,
+        today=day,
+        user_id=user_id,
+        taste_weights=taste_weights,
+        limit=limit,
+        exclude_combo=exclude_combo,
+    )
