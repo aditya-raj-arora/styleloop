@@ -1,10 +1,12 @@
 """Deterministic color extraction + graceful degradation without an API key.
 
 No DB or network needed — these exercise pure functions and the
-ANTHROPIC_API_KEY-unset short-circuit in tag_garment.
+GEMINI_API_KEY-unset short-circuit in tag_garment.
 """
 
 import io
+import json
+from unittest.mock import MagicMock, patch
 
 from PIL import Image
 
@@ -51,7 +53,7 @@ def test_extract_colors_ignores_transparent_background() -> None:
 
 
 def test_tag_garment_degrades_gracefully_without_api_key(monkeypatch) -> None:
-    monkeypatch.setattr(tagging.settings, "ANTHROPIC_API_KEY", "")
+    monkeypatch.setattr(tagging.settings, "GEMINI_API_KEY", "")
 
     img = _solid_rgba((80, 80), (245, 245, 245))  # white
     buf = io.BytesIO()
@@ -66,3 +68,43 @@ def test_tag_garment_degrades_gracefully_without_api_key(monkeypatch) -> None:
     assert result["fabric_confidence"] is None
     assert result["season"] is None
     assert result["formality"] is None
+
+
+def test_classify_parses_gemini_response(monkeypatch) -> None:
+    monkeypatch.setattr(tagging.settings, "GEMINI_API_KEY", "test-key")
+
+    payload = {
+        "category": "top",
+        "pattern": "solid",
+        "season": "summer",
+        "formality": "casual",
+        "fabric": "cotton",
+        "fabric_confidence": 0.9,
+    }
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {
+        "candidates": [{"content": {"parts": [{"text": json.dumps(payload)}]}}]
+    }
+
+    with patch("httpx.post", return_value=fake_response) as mock_post:
+        result = tagging._classify(b"fake-image-bytes", "image/png")
+
+    assert result is not None
+    assert result.category == "top"
+    assert result.fabric_confidence == 0.9
+    assert mock_post.call_args.kwargs["params"] == {"key": "test-key"}
+    assert "gemini-2.5-flash" in mock_post.call_args.args[0]
+
+
+def test_classify_degrades_on_malformed_response(monkeypatch) -> None:
+    monkeypatch.setattr(tagging.settings, "GEMINI_API_KEY", "test-key")
+
+    fake_response = MagicMock()
+    fake_response.raise_for_status.return_value = None
+    fake_response.json.return_value = {"candidates": []}  # malformed/empty
+
+    with patch("httpx.post", return_value=fake_response):
+        result = tagging._classify(b"fake-image-bytes", "image/png")
+
+    assert result is None

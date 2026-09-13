@@ -14,7 +14,6 @@ boto3
 pillow
 numpy
 httpx
-anthropic
 # rembg is intentionally NOT pinned here — it's a heavy, optional local
 # bg-removal backend (onnxruntime + a ~176MB model download) imported lazily
 # in services/bg_removal.py, which falls back to the remove.bg HTTP API when
