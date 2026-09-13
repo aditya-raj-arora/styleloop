@@ -1,13 +1,58 @@
 """Weather service.
 
 Algorithm:
-    - Query OpenWeatherMap for the user's lat/lon (current + short forecast).
-    - Normalize to a compact dict the rotation engine consumes:
+    - Query OpenWeatherMap's Current Weather API for the user's lat/lon.
+    - Normalize the response to a compact dict the rotation engine consumes:
         {"temp_c": float, "condition": str, "rain": bool}
-    - Cache per (lat, lon) for a short TTL to avoid hammering the API.
+    - Cache per (lat, lon), rounded to ~1km, for a short TTL — weather doesn't
+      change meaningfully faster than that, and this keeps repeated dashboard
+      loads from hammering the API.
 """
+
+from __future__ import annotations
+
+import time
+
+import httpx
+
+from app.config import settings
+
+_API_URL = "https://api.openweathermap.org/data/2.5/weather"
+_CACHE_TTL_SECONDS = 600  # 10 minutes
+
+# OpenWeatherMap's top-level condition groups that mean "bring an umbrella".
+# See https://openweathermap.org/weather-conditions for the full list.
+_RAIN_CONDITIONS = {"rain", "drizzle", "thunderstorm", "snow"}
+
+# Module-level cache: {(lat, lon) rounded to 2dp: (cached_at, result)}. Plain
+# in-process dict rather than Redis — weather lookups are cheap to redo on a
+# cold process, and this avoids a Redis round-trip on the common warm path.
+_cache: dict[tuple[float, float], tuple[float, dict]] = {}
 
 
 def get_weather(lat: float, lon: float) -> dict:
-    # TODO(Backend): OpenWeatherMap lat/lon -> {temp_c, condition, rain}.
-    raise NotImplementedError
+    """Return {"temp_c": float, "condition": str, "rain": bool} for (lat, lon)."""
+    key = (round(lat, 2), round(lon, 2))  # ~1km grid — plenty of granularity for outfit weather
+    now = time.monotonic()
+
+    cached = _cache.get(key)
+    if cached is not None and now - cached[0] < _CACHE_TTL_SECONDS:
+        return cached[1]
+
+    response = httpx.get(
+        _API_URL,
+        params={"lat": lat, "lon": lon, "appid": settings.OPENWEATHER_API_KEY, "units": "metric"},
+        timeout=10.0,
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    condition = data["weather"][0]["main"]
+    result = {
+        "temp_c": data["main"]["temp"],
+        "condition": condition,
+        "rain": condition.lower() in _RAIN_CONDITIONS,
+    }
+
+    _cache[key] = (now, result)
+    return result

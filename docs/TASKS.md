@@ -80,17 +80,20 @@ end-to-end.
 
 Rotation lands in Sprint 2; Sprint 1 de-risks it and unblocks everyone.
 
-- [ ] **`weather.get_weather`** (OpenWeatherMap lat/lon → `{temp_c, condition, rain}`)
+- [x] **`weather.get_weather`** (OpenWeatherMap lat/lon → `{temp_c, condition, rain}`)
       with a short-TTL cache. Needed by the engine next sprint.
-- [ ] **Scoring spike**: pure function `score_outfit(...)` implementing
+- [x] **Scoring spike**: pure function `score_outfit(...)` implementing
       `validity + recency_penalty + fairness + taste_weight`, with **unit tests over
       synthetic garments** (no DB). Validate the per-day `(user_id, date)` seed →
       deterministic-but-varying behavior. Write it up as a short design note.
-- [ ] **Seed script** `scripts/seed.py`: demo user + N varied garments for local dev
+      (Added a 5th term, `day_jitter`, to actually make the per-day seed
+      produce varying-but-reproducible rankings — see
+      docs/rotation-scoring-design-note.md.)
+- [x] **Seed script** `scripts/seed.py`: demo user + N varied garments for local dev
       (helps A and B test without hand-uploading).
-- [ ] **Test harness**: pytest fixtures for an ephemeral test DB + factory helpers;
+- [x] **Test harness**: pytest fixtures for an ephemeral test DB + factory helpers;
       wire into CI so DB-touching tests run.
-- [ ] **Frontend**: Dashboard + Swipe skeletons rendering **mock** outfit data
+- [x] **Frontend**: Dashboard + Swipe skeletons rendering **mock** outfit data
       against the contract, so the UI is ready when the engine ships.
 - **Acceptance:** `pytest` covers the scoring function + determinism; weather returns
   the normalized dict; `seed.py` populates a demo wardrobe.

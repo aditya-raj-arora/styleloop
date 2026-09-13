@@ -56,6 +56,7 @@ pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env          # then fill in real values
 docker compose up -d          # Postgres + Redis (see "Local infra" below)
 alembic upgrade head          # create tables
+python scripts/seed.py        # optional: demo user + varied garments to develop against
 ruff check .
 pytest -q
 uvicorn app.main:app --reload

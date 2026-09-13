@@ -37,6 +37,21 @@ export interface User {
   created_at: string;
 }
 
+// Mirrors backend/app/schemas/outfit.py::OutfitOut — the Sprint 2 GET
+// /outfits/daily contract. Dashboard/Swipe mock data is shaped against this
+// now (Sprint 1) so swapping in the real endpoint later is a data-source
+// change, not a type rework. Note garment_ids is just ids, not embedded
+// Garment objects — rendering an outfit's actual photos needs a follow-up
+// fetch (or a richer response) once the real endpoint exists.
+export interface Outfit {
+  id: number;
+  user_id: number;
+  garment_ids: number[];
+  score: number | null;
+  generated_for: string;
+  created_at: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
