@@ -4,7 +4,7 @@ Algorithm:
     1. Try local rembg (U2Net) to produce a transparent PNG cutout of the garment.
     2. If rembg is unavailable (not installed — it's an optional, heavy
        dependency; see requirements.txt) or the local run fails, fall back to
-       the remove.bg HTTP API.
+       the DeepAI background-remover HTTP API.
     3. The caller (the worker) uploads the cutout and generates signed URLs;
        this module never logs image bytes.
 
@@ -21,7 +21,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-_REMOVE_BG_URL = "https://api.remove.bg/v1.0/removebg"
+_DEEPAI_URL = "https://api.deepai.org/api/background-remover"
 
 
 def remove_background(image_bytes: bytes) -> bytes:
@@ -30,7 +30,7 @@ def remove_background(image_bytes: bytes) -> bytes:
         return _remove_background_local(image_bytes)
     except Exception:
         logger.warning(
-            "Local bg-removal (rembg) unavailable or failed; falling back to remove.bg",
+            "Local bg-removal (rembg) unavailable or failed; falling back to DeepAI",
             exc_info=True,
         )
 
@@ -50,18 +50,25 @@ def _remove_background_local(image_bytes: bytes) -> bytes:
 
 
 def _remove_background_via_api(image_bytes: bytes) -> bytes:
-    if not settings.REMOVE_BG_API_KEY:
+    if not settings.DEEPAI_API_KEY:
         raise RuntimeError(
             "Background removal unavailable: local rembg failed or isn't "
-            "installed, and REMOVE_BG_API_KEY is not set."
+            "installed, and DEEPAI_API_KEY is not set."
         )
 
     response = httpx.post(
-        _REMOVE_BG_URL,
-        files={"image_file": ("garment", image_bytes)},
-        data={"size": "auto"},
-        headers={"X-Api-Key": settings.REMOVE_BG_API_KEY},
+        _DEEPAI_URL,
+        files={"image": ("garment", image_bytes)},
+        headers={"api-key": settings.DEEPAI_API_KEY},
         timeout=30.0,
     )
     response.raise_for_status()
-    return response.content
+
+    output_url = response.json().get("output_url")
+    if not output_url:
+        raise RuntimeError("DeepAI background-remover response missing output_url")
+
+    # DeepAI returns a URL to the result rather than the image bytes directly.
+    output = httpx.get(output_url, timeout=30.0)
+    output.raise_for_status()
+    return output.content

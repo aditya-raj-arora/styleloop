@@ -42,8 +42,8 @@ class Settings(BaseSettings):
 
     # --- Background removal fallback ---
     # rembg (local, U2Net) is tried first; if it's unavailable or fails, fall
-    # back to the remove.bg HTTP API using this key.
-    REMOVE_BG_API_KEY: str = ""
+    # back to the DeepAI background-remover HTTP API using this key.
+    DEEPAI_API_KEY: str = ""
 
     # Below this confidence, fabric is stored as None rather than a guess.
     FABRIC_CONFIDENCE_THRESHOLD: float = 0.5
