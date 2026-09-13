@@ -1,7 +1,21 @@
 import AnimatedBackground from "../components/AnimatedBackground";
 import Navbar from "../components/Navbar";
+import type { Outfit } from "../api/client";
+
+// Mock "today's outfit" shaped against the real Outfit contract (see
+// api/client.ts) so swapping in GET /outfits/daily later (Sprint 2) is a
+// data-source change, not a type rework.
+const _MOCK_DAILY_OUTFIT: Outfit = {
+  id: 1,
+  user_id: 1,
+  garment_ids: [101, 102, 103],
+  score: 2.4,
+  generated_for: new Date().toISOString().slice(0, 10),
+  created_at: new Date().toISOString(),
+};
 
 export default function Dashboard() {
+  const dailyOutfit = _MOCK_DAILY_OUTFIT;
 
   const hour = new Date().getHours();
 
@@ -27,11 +41,15 @@ export default function Dashboard() {
           Welcome back to StyleLoop
         </p>
 
-        <div className="mt-12 h-[400px] rounded-3xl border-2 border-dashed border-white/40 flex justify-center items-center">
+        <div className="mt-12 h-[400px] rounded-3xl border-2 border-dashed border-white/40 flex flex-col justify-center items-center gap-2">
 
           <h2 className="text-2xl text-white">
             Outfit Recommendation Area
           </h2>
+
+          <p className="text-white/60 text-sm">
+            {dailyOutfit.garment_ids.length} items · mock score {dailyOutfit.score}
+          </p>
 
         </div>
 
