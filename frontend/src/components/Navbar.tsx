@@ -1,19 +1,12 @@
-// Navbar — stub.
-// TODO(Frontend): active states, real styling.
-
-import { Link, useNavigate } from "react-router-dom";
+import { Home, LogOut, Shirt, Upload } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../store/useAuth";
 
 export default function Navbar() {
-  const token = useAuth((state) => state.token);
-  const clear = useAuth((state) => state.clear);
+  const location = useLocation();
   const navigate = useNavigate();
-
-  if (!token) {
-    // Logged out: nothing to navigate to yet, just the login/signup page.
-    return null;
-  }
+  const clear = useAuth((state) => state.clear);
 
   function handleLogout() {
     clear();
@@ -21,13 +14,42 @@ export default function Navbar() {
   }
 
   return (
-    <nav>
-      <Link to="/dashboard">Dashboard</Link>{" "}
-      <Link to="/wardrobe">Wardrobe</Link>{" "}
-      <Link to="/upload">Upload</Link>{" "}
-      <Link to="/swipe">Swipe</Link>{" "}
-      <button type="button" onClick={handleLogout}>
-        Log out
+    <nav className="fixed bottom-0 left-0 right-0 flex justify-around py-3 bg-zinc-900 border-t">
+      <Link
+        to="/dashboard"
+        className={
+          location.pathname === "/dashboard"
+            ? "text-amber-400"
+            : "text-gray-400"
+        }
+      >
+        <Home />
+      </Link>
+
+      <Link
+        to="/wardrobe"
+        className={
+          location.pathname === "/wardrobe"
+            ? "text-amber-400"
+            : "text-gray-400"
+        }
+      >
+        <Shirt />
+      </Link>
+
+      <Link
+        to="/upload"
+        className={
+          location.pathname === "/upload"
+            ? "text-amber-400"
+            : "text-gray-400"
+        }
+      >
+        <Upload />
+      </Link>
+
+      <button type="button" onClick={handleLogout} className="text-gray-400">
+        <LogOut />
       </button>
     </nav>
   );

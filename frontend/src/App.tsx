@@ -1,17 +1,15 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import Navbar from "./components/Navbar";
 import RequireAuth from "./components/RequireAuth";
-import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
+import Dashboard from "./pages/Dashboard";
 import Swipe from "./pages/Swipe";
 import Upload from "./pages/Upload";
 import Wardrobe from "./pages/Wardrobe";
 
-export default function App() {
+function App() {
   return (
     <BrowserRouter>
-      <Navbar />
       <Routes>
         <Route path="/" element={<Login />} />
         <Route
@@ -50,3 +48,5 @@ export default function App() {
     </BrowserRouter>
   );
 }
+
+export default App;

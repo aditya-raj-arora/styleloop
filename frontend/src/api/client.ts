@@ -1,4 +1,4 @@
-// Thin fetch wrapper around the StyleLoop API.
+// Thin fetch wrapper around the VogueVault API.
 //
 // `Garment` mirrors the FROZEN CONTRACT defined by the backend at
 // backend/app/schemas/garment.py::GarmentOut. Keep these in lockstep.
@@ -47,16 +47,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const token = useAuth.getState().token;
-  const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
-  if (token) {
-    // JWT is sent as `Authorization: Bearer <token>`.
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const response = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+async function _handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let detail = `Request failed: ${response.status}`;
     try {
@@ -68,6 +59,32 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     throw new ApiError(response.status, detail);
   }
   return (await response.json()) as T;
+}
+
+export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const token = useAuth.getState().token;
+  const headers = new Headers(init.headers);
+  headers.set("Content-Type", "application/json");
+  if (token) {
+    // JWT is sent as `Authorization: Bearer <token>`.
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${BASE_URL}${path}`, { ...init, headers });
+  return _handleResponse<T>(response);
+}
+
+// Like apiFetch, but for multipart/form-data bodies — never set Content-Type
+// manually for these; the browser must generate it (it includes the boundary).
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const token = useAuth.getState().token;
+  const headers = new Headers();
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(`${BASE_URL}${path}`, { method: "POST", headers, body: form });
+  return _handleResponse<T>(response);
 }
 
 export function signup(email: string, password: string): Promise<Token> {
@@ -86,4 +103,45 @@ export function login(email: string, password: string): Promise<Token> {
 
 export function getCurrentUser(): Promise<User> {
   return apiFetch<User>("/auth/me");
+}
+
+// --- Garments ---
+
+export function listGarments(): Promise<Garment[]> {
+  return apiFetch<Garment[]>("/garments");
+}
+
+export function getGarment(id: number): Promise<Garment> {
+  return apiFetch<Garment>(`/garments/${id}`);
+}
+
+export function uploadGarment(file: File): Promise<Garment> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiUpload<Garment>("/garments", form);
+}
+
+export interface TagUpdate {
+  category?: string | null;
+  colors?: string[] | null;
+  pattern?: string | null;
+  fabric?: string | null;
+  season?: string | null;
+  formality?: string | null;
+}
+
+export function updateGarmentTags(id: number, tags: TagUpdate): Promise<Garment> {
+  return apiFetch<Garment>(`/garments/${id}/tags`, {
+    method: "PATCH",
+    body: JSON.stringify(tags),
+  });
+}
+
+export type GarmentState = "clean" | "worn" | "laundry";
+
+export function setGarmentState(id: number, state: GarmentState): Promise<Garment> {
+  return apiFetch<Garment>(`/garments/${id}/state`, {
+    method: "POST",
+    body: JSON.stringify({ state }),
+  });
 }

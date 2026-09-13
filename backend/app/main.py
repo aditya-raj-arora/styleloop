@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.routers import auth, garments, outfits
 
-app = FastAPI(title="StyleLoop API", version="0.1.0")
+app = FastAPI(title="VogueVault API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,

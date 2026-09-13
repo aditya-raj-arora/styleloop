@@ -36,11 +36,17 @@ export default function Login() {
   }
 
   return (
-    <main>
-      <h1>{mode === "login" ? "Log in" : "Sign up"}</h1>
-      <form onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="email">Email</label>
+    <div className="h-screen flex flex-col justify-center items-center gap-8 px-6">
+      <h1 className="text-4xl font-bold">VogueVault</h1>
+
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-xs flex flex-col gap-4"
+      >
+        <div className="flex flex-col gap-1">
+          <label htmlFor="email" className="text-sm text-gray-500">
+            Email
+          </label>
           <input
             id="email"
             type="email"
@@ -48,10 +54,14 @@ export default function Login() {
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            className="px-4 py-2 rounded-xl border border-gray-300"
           />
         </div>
-        <div>
-          <label htmlFor="password">Password</label>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="password" className="text-sm text-gray-500">
+            Password
+          </label>
           <input
             id="password"
             type="password"
@@ -60,28 +70,35 @@ export default function Login() {
             minLength={mode === "signup" ? 8 : undefined}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
+            className="px-4 py-2 rounded-xl border border-gray-300"
           />
         </div>
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? "Please wait…" : mode === "login" ? "Log in" : "Sign up"}
+
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="mt-4 px-6 py-3 bg-amber-400 rounded-xl font-semibold disabled:opacity-60"
+        >
+          {mutation.isPending ? "Please wait…" : mode === "login" ? "Login" : "Sign up"}
         </button>
       </form>
 
       {mutation.isError && (
-        <p role="alert">
+        <p role="alert" className="text-red-500 text-sm">
           {mutation.error instanceof ApiError ? mutation.error.message : "Something went wrong."}
         </p>
       )}
 
-      <p>
+      <p className="text-sm text-gray-500">
         {mode === "login" ? "Need an account? " : "Already have an account? "}
         <button
           type="button"
           onClick={() => setMode(mode === "login" ? "signup" : "login")}
+          className="text-amber-500 font-semibold"
         >
           {mode === "login" ? "Sign up" : "Log in"}
         </button>
       </p>
-    </main>
+    </div>
   );
 }

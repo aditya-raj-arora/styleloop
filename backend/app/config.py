@@ -33,6 +33,21 @@ class Settings(BaseSettings):
     OPENWEATHER_API_KEY: str = ""
     FASHN_API_KEY: str = ""
 
+    # --- Vision tagging (Claude API) ---
+    # Used by services.tagging for category/pattern/fabric/season/formality
+    # zero-shot classification. Blank disables vision tagging (colors are still
+    # computed deterministically without it).
+    ANTHROPIC_API_KEY: str = ""
+    VISION_MODEL: str = "claude-opus-5"
+
+    # --- Background removal fallback ---
+    # rembg (local, U2Net) is tried first; if it's unavailable or fails, fall
+    # back to the DeepAI background-remover HTTP API using this key.
+    DEEPAI_API_KEY: str = ""
+
+    # Below this confidence, fabric is stored as None rather than a guess.
+    FABRIC_CONFIDENCE_THRESHOLD: float = 0.5
+
     # --- Auth ---
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"

@@ -1,4 +1,4 @@
-# StyleLoop — Sprints & Task Breakdown
+# VogueVault — Sprints & Task Breakdown
 
 > **Sprint numbering:** the scaffold already on `main` (models, API skeleton,
 > frontend shell, green CI/CD) is **Sprint 0 — Foundation (✅ done)**. Everything
@@ -58,18 +58,20 @@ end-to-end.
 
 ### Dev B — `Backend + ML` (Upload + tagging)
 
-- [ ] **`POST /garments`** (multipart): store raw to the bucket (A's adapter),
+- [x] **`POST /garments`** (multipart): store raw to the bucket (A's adapter),
       create `Garment` (`state='clean'`), enqueue `process_garment(id)`, return
       `GarmentOut` **202 immediately** (`processed_url` null).
-- [ ] **`GET /garments`** (user-scoped list) + **`GET /garments/{id}`** (404 if not owned).
-- [ ] **`bg_removal.remove_background`**: rembg (U2Net) local, remove.bg fallback.
-- [ ] **`tagging.tag_garment`**: deterministic color (k-means in LAB → named palette);
-      category/pattern via CLIP zero-shot; fabric best-effort → `None` below threshold.
-- [ ] **Worker `process_garment`**: bg-removal → tagging → upload processed →
+- [x] **`GET /garments`** (user-scoped list) + **`GET /garments/{id}`** (404 if not owned).
+- [x] **`bg_removal.remove_background`**: rembg (U2Net) local, remove.bg fallback.
+- [x] **`tagging.tag_garment`**: deterministic color (k-means in LAB → named palette);
+      category/pattern/season/formality via a Claude vision zero-shot call; fabric
+      confidence → `None` below threshold. (Team called an audible on CLIP vs.
+      vision-LLM — see the PR description for why.)
+- [x] **Worker `process_garment`**: bg-removal → tagging → upload processed →
       set `processed_url` + tags → commit. Idempotent + safe to retry.
-- [ ] **`PATCH /garments/{id}/tags`** (`TagUpdate`) and **`POST /garments/{id}/state`**
+- [x] **`PATCH /garments/{id}/tags`** (`TagUpdate`) and **`POST /garments/{id}/state`**
       (clean/worn/laundry; on "worn" bump `wear_count` + `last_worn_at`).
-- [ ] **Frontend**: Upload page (file picker + optimistic placeholder card) and
+- [x] **Frontend**: Upload page (file picker + optimistic placeholder card) and
       Wardrobe grid (`GarmentCard`, refetch/poll until `processed_url` populated).
 - **Acceptance:** upload a photo → card shows "Processing…" → resolves to cutout +
   tags within a few seconds; wardrobe lists all of the user's garments.
