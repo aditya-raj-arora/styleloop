@@ -6,9 +6,9 @@ Algorithm:
                 nearest entry in a fixed named palette. Fully reproducible,
                 no model, no API call.
     - category / pattern / season / formality:
-                zero-shot classification via a single Claude vision call over
+                zero-shot classification via a single Gemini vision call over
                 fixed label sets (see `_LABELS`). Disabled (all None) when
-                ANTHROPIC_API_KEY is unset — colors still work without it.
+                GEMINI_API_KEY is unset — colors still work without it.
     - fabric:   returned by the same vision call with a confidence score;
                 stored as None when confidence is below
                 FABRIC_CONFIDENCE_THRESHOLD, so the UI can prompt the user
@@ -22,10 +22,13 @@ Runs in the RQ worker only.
 
 from __future__ import annotations
 
+import base64
 import io
+import json
 import logging
 from typing import Literal
 
+import httpx
 import numpy as np
 from PIL import Image
 from pydantic import BaseModel
@@ -145,7 +148,22 @@ def _extract_colors(image: Image.Image, max_colors: int = 3) -> list[str]:
     return names
 
 
-# --- Vision classification (Claude API) ---------------------------------------
+# --- Vision classification (Gemini API) ---------------------------------------
+
+_GEMINI_URL_TEMPLATE = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+_CLASSIFICATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "category": {"type": "string", "enum": _CATEGORIES},
+        "pattern": {"type": "string", "enum": _PATTERNS},
+        "season": {"type": "string", "enum": _SEASONS},
+        "formality": {"type": "string", "enum": _FORMALITIES},
+        "fabric": {"type": "string", "enum": _FABRICS},
+        "fabric_confidence": {"type": "number"},
+    },
+    "required": ["category", "pattern", "season", "formality", "fabric", "fabric_confidence"],
+}
 
 
 class _GarmentClassification(BaseModel):
@@ -162,60 +180,53 @@ class _GarmentClassification(BaseModel):
 
 
 def _classify(image_bytes: bytes, media_type: str) -> _GarmentClassification | None:
-    """Zero-shot classify category/pattern/fabric/season/formality via Claude.
+    """Zero-shot classify category/pattern/fabric/season/formality via Gemini.
 
-    Returns None (caller degrades gracefully) if ANTHROPIC_API_KEY is unset or
+    Returns None (caller degrades gracefully) if GEMINI_API_KEY is unset or
     the call fails — tagging should never take down the whole worker task.
     """
-    if not settings.ANTHROPIC_API_KEY:
+    if not settings.GEMINI_API_KEY:
         return None
 
-    import anthropic  # lazy: keeps this module importable without the SDK installed
-
-    client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+    url = _GEMINI_URL_TEMPLATE.format(model=settings.VISION_MODEL)
     try:
-        response = client.messages.parse(
-            model=settings.VISION_MODEL,
-            max_tokens=1024,
-            output_config={"effort": "low"},  # simple classification, not deep reasoning
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": _b64(image_bytes),
+        response = httpx.post(
+            url,
+            params={"key": settings.GEMINI_API_KEY},
+            json={
+                "contents": [
+                    {
+                        "parts": [
+                            {"inline_data": {"mime_type": media_type, "data": _b64(image_bytes)}},
+                            {
+                                "text": (
+                                    "Classify this single clothing item cutout. Pick exactly "
+                                    "one value per field from the schema's allowed labels. "
+                                    "fabric_confidence is your confidence (0.0-1.0) in the "
+                                    "fabric guess."
+                                )
                             },
-                        },
-                        {
-                            "type": "text",
-                            "text": (
-                                "Classify this single clothing item cutout. Pick exactly one "
-                                "value per field from the schema's allowed labels. "
-                                "fabric_confidence is your confidence (0.0-1.0) in the "
-                                "fabric guess."
-                            ),
-                        },
-                    ],
-                }
-            ],
-            output_format=_GarmentClassification,
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "responseSchema": _CLASSIFICATION_SCHEMA,
+                },
+            },
+            timeout=30.0,
         )
+        response.raise_for_status()
+        text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return _GarmentClassification(**json.loads(text))
     except Exception:
         logger.warning(
             "Vision classification failed; category/pattern/fabric left unset", exc_info=True
         )
         return None
 
-    return response.parsed_output
-
 
 def _b64(data: bytes) -> str:
-    import base64
-
     return base64.standard_b64encode(data).decode("utf-8")
 
 

@@ -33,12 +33,14 @@ class Settings(BaseSettings):
     OPENWEATHER_API_KEY: str = ""
     FASHN_API_KEY: str = ""
 
-    # --- Vision tagging (Claude API) ---
+    # --- Vision tagging (Gemini API) ---
     # Used by services.tagging for category/pattern/fabric/season/formality
     # zero-shot classification. Blank disables vision tagging (colors are still
-    # computed deterministically without it).
-    ANTHROPIC_API_KEY: str = ""
-    VISION_MODEL: str = "claude-opus-5"
+    # computed deterministically without it). Verify VISION_MODEL against the
+    # current model list at ai.google.dev if it 404s — Gemini model names get
+    # retired/renamed over time.
+    GEMINI_API_KEY: str = ""
+    VISION_MODEL: str = "gemini-2.5-flash"
 
     # --- Background removal fallback ---
     # rembg (local, U2Net) is tried first; if it's unavailable or fails, fall
