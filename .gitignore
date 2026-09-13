@@ -62,3 +62,5 @@ yarn-error.log*
 generated-images/
 uploads/
 *.local.png
+
+.vercel
