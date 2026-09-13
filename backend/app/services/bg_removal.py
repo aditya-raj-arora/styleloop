@@ -1,7 +1,8 @@
 """Background removal service.
 
 Algorithm:
-    1. Try local rembg (U2Net) to produce a transparent PNG cutout of the garment.
+    1. Try local rembg (pinned to the lightweight u2netp model — see
+       `_get_rembg_session`) to produce a transparent PNG cutout of the garment.
     2. If rembg is unavailable (not installed — it's an optional, heavy
        dependency; see requirements.txt) or the local run fails, fall back to
        the DeepAI background-remover HTTP API.
@@ -37,13 +38,30 @@ def remove_background(image_bytes: bytes) -> bytes:
     return _remove_background_via_api(image_bytes)
 
 
+_rembg_session = None  # cached across calls — loaded once per worker process
+
+
+def _get_rembg_session():
+    global _rembg_session
+    if _rembg_session is None:
+        from rembg import new_session  # type: ignore[import-not-found]
+
+        # Explicitly pin the lightweight "u2netp" model (~4.5MB). rembg's
+        # own default has grown heavier over versions (e.g. bria-rmbg-2.0 in
+        # 2.0.x) — that default OOM-killed a 1GB worker even with 2GB of
+        # swap. u2netp trades a little quality for a much smaller memory
+        # footprint, which matters more on a small always-on instance.
+        _rembg_session = new_session("u2netp")
+    return _rembg_session
+
+
 def _remove_background_local(image_bytes: bytes) -> bytes:
     # Imported lazily: rembg (+ onnxruntime) is a heavy, optional dependency —
     # only a worker that has it installed should pay that cost, and its
     # absence should fall back gracefully rather than break the whole service.
     from rembg import remove  # type: ignore[import-not-found]
 
-    result = remove(image_bytes)
+    result = remove(image_bytes, session=_get_rembg_session())
     if not isinstance(result, (bytes, bytearray)) or not result:
         raise RuntimeError("rembg returned an empty or unexpected result")
     return bytes(result)
