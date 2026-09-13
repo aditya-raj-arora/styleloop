@@ -167,3 +167,37 @@ export function setGarmentState(id: number, state: GarmentState): Promise<Garmen
     body: JSON.stringify({ state }),
   });
 }
+
+// --- Outfits (rotation engine, Sprint 2) ---
+//
+// `lat`/`lon` come from the browser's geolocation (see useGeolocation); the
+// backend falls back to a fixed default city when omitted, so both are
+// optional here too.
+
+function _coordsQuery(coords?: { lat: number; lon: number }): string {
+  if (!coords) return "";
+  return `?lat=${coords.lat}&lon=${coords.lon}`;
+}
+
+export function getDailyOutfit(coords?: { lat: number; lon: number }): Promise<Outfit> {
+  return apiFetch<Outfit>(`/outfits/daily${_coordsQuery(coords)}`);
+}
+
+export function generateOutfit(coords?: { lat: number; lon: number }): Promise<Outfit> {
+  return apiFetch<Outfit>(`/outfits/generate${_coordsQuery(coords)}`, { method: "POST" });
+}
+
+export type FeedbackAction = "like" | "dislike" | "skip";
+
+export function sendOutfitFeedback(id: number, action: FeedbackAction): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/outfits/${id}/feedback`, {
+    method: "POST",
+    body: JSON.stringify({ action }),
+  });
+}
+
+export function wearOutfit(id: number): Promise<{ status: string; garment_ids: number[] }> {
+  return apiFetch<{ status: string; garment_ids: number[] }>(`/outfits/${id}/wear`, {
+    method: "POST",
+  });
+}

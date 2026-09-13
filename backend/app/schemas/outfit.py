@@ -23,3 +23,9 @@ class OutfitOut(BaseModel):
     score: float | None = None
     generated_for: date
     created_at: datetime
+
+
+class FeedbackIn(BaseModel):
+    """A swipe action on an outfit. `action` is one of "like" | "dislike" | "skip"."""
+
+    action: str

@@ -1,71 +1,90 @@
-import { useState } from "react";
-import Navbar from "../components/Navbar";
-import type { Outfit } from "../api/client";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-// NOTE(Dev C): this page swipes on *outfits* (mock for now — Sprint 2 wires
-// GET /outfits/daily), not single garments, so it doesn't reuse GarmentCard —
-// that component is now typed to the real single-Garment API shape from the
-// Sprint 1 upload pipeline. Swap this local card for real outfit data when
-// the rotation engine lands.
-function MockOutfitCard({ image, title }: { image: string; title: string }) {
+import { generateOutfit, getDailyOutfit, sendOutfitFeedback } from "../api/client";
+import Navbar from "../components/Navbar";
+import { useGeolocation } from "../hooks/useGeolocation";
+
+// NOTE(Dev C): this page swipes on the *daily outfit* (GET /outfits/daily),
+// not single garments, so it doesn't reuse GarmentCard — that component is
+// typed to the real single-Garment API shape from the Sprint 1 upload
+// pipeline. The contract only carries garment_ids (numbers), not a photo or
+// title to render, so this is a plain summary card rather than a photo swipe
+// until try-on (Sprint 4) gives us something to actually show.
+function OutfitCard({ itemCount, score }: { itemCount: number; score: number | null }) {
   return (
-    <div className="rounded-2xl overflow-hidden shadow-lg">
-      <img src={image} alt={title} className="w-full h-[420px] object-cover" />
-      <div className="p-4 bg-black text-white">
-        <h2>{title}</h2>
-      </div>
+    <div className="rounded-2xl overflow-hidden shadow-lg bg-black text-white p-8 flex flex-col items-center justify-center h-[420px] gap-2">
+      <h2 className="text-3xl font-semibold">Today's Outfit</h2>
+      <p className="text-white/70">
+        {itemCount} item{itemCount === 1 ? "" : "s"}
+        {score !== null && ` · score ${score.toFixed(2)}`}
+      </p>
     </div>
   );
 }
 
-// Mock data shaped against the real Outfit contract (see api/client.ts) so
-// swapping this for GET /outfits/daily later is a data-source change, not a
-// type rework. The contract only carries garment_ids (numbers), not photos
-// or a title — display-only mock metadata for rendering lives in
-// _MOCK_DISPLAY below, keyed by outfit id, since the real endpoint doesn't
-// have an equivalent field yet.
-const _MOCK_OUTFITS: Outfit[] = [
-  { id: 1, user_id: 1, garment_ids: [101, 102], score: 2.4, generated_for: "2026-09-14", created_at: "2026-09-14T06:00:00Z" },
-  { id: 2, user_id: 1, garment_ids: [103, 104, 105], score: 1.9, generated_for: "2026-09-14", created_at: "2026-09-14T06:00:00Z" },
-  { id: 3, user_id: 1, garment_ids: [106, 107], score: 1.7, generated_for: "2026-09-14", created_at: "2026-09-14T06:00:00Z" },
-];
-
-const _MOCK_DISPLAY: Record<number, { image: string; title: string }> = {
-  1: { image: "https://picsum.photos/500/700?1", title: "Summer Fit" },
-  2: { image: "https://picsum.photos/500/700?2", title: "Streetwear" },
-  3: { image: "https://picsum.photos/500/700?3", title: "Formal" },
-};
-
 export default function Swipe() {
-  const [index, setIndex] = useState(0);
+  const { coords, loading: locating } = useGeolocation();
+  const queryClient = useQueryClient();
 
-  function next() {
-    setIndex((index + 1) % _MOCK_OUTFITS.length);
-  }
+  const { data: outfit, isLoading } = useQuery({
+    queryKey: ["outfits", "daily"],
+    queryFn: () => getDailyOutfit(coords),
+    enabled: !locating,
+  });
 
-  const outfit = _MOCK_OUTFITS[index];
-  const display = _MOCK_DISPLAY[outfit.id];
+  // Skip = "dislike" this suggestion, then regenerate a fresh one to swipe
+  // on. Like = record the preference and keep today's outfit as-is (nothing
+  // left to swipe to — a single daily suggestion, not a deck).
+  const skip = useMutation({
+    mutationFn: async (outfitId: number) => {
+      await sendOutfitFeedback(outfitId, "dislike");
+      return generateOutfit(coords);
+    },
+    onSuccess: (newOutfit) => {
+      queryClient.setQueryData(["outfits", "daily"], newOutfit);
+    },
+  });
+
+  const like = useMutation({
+    mutationFn: (outfitId: number) => sendOutfitFeedback(outfitId, "like"),
+  });
+
+  const busy = skip.isPending || like.isPending;
 
   return (
     <>
       <div className="p-5">
-        <MockOutfitCard image={display.image} title={display.title} />
+        {(locating || isLoading) && <p className="text-center text-gray-600">Loading…</p>}
 
-        <div className="flex justify-center gap-5 mt-6">
-          <button
-            onClick={next}
-            className="bg-red-500 px-6 py-2 rounded"
-          >
-            Skip
-          </button>
+        {!locating && !isLoading && !outfit && (
+          <p className="text-center text-gray-600">
+            Nothing to show yet — add a few tagged clean garments first.
+          </p>
+        )}
 
-          <button
-            onClick={next}
-            className="bg-green-500 px-6 py-2 rounded"
-          >
-            Like
-          </button>
-        </div>
+        {outfit && (
+          <>
+            <OutfitCard itemCount={outfit.garment_ids.length} score={outfit.score} />
+
+            <div className="flex justify-center gap-5 mt-6">
+              <button
+                onClick={() => skip.mutate(outfit.id)}
+                disabled={busy}
+                className="bg-red-500 px-6 py-2 rounded disabled:opacity-50"
+              >
+                Skip
+              </button>
+
+              <button
+                onClick={() => like.mutate(outfit.id)}
+                disabled={busy || like.isSuccess}
+                className="bg-green-500 px-6 py-2 rounded disabled:opacity-50"
+              >
+                {like.isSuccess ? "Liked!" : "Like"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       <Navbar />

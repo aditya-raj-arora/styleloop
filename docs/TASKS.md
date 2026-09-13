@@ -110,15 +110,30 @@ other affected owner. No silent drift.
 
 ---
 
-## Sprint 2 — Rotation engine + Daily outfit *(the differentiator)*
+## Sprint 2 — Rotation engine + Daily outfit *(the differentiator)* ✅
 
-- Implement `rotation.generate_outfits`: score candidates over **clean-only**
-  garments; weather-aware filtering (season/formality vs. today's weather);
-  per-day seed for stable-but-fresh suggestions; novelty optimization.
-- `GET /outfits/daily` (generate on first request) + `POST /outfits/generate`.
-- `POST /outfits/{id}/wear` → mark each garment worn (state, `wear_count`, `last_worn_at`).
-- Dashboard: today's outfit, weather chip, "regenerate", "wore this".
-- **Milestone:** weather-aware, non-repeating daily suggestion you can accept.
+- [x] Implement `rotation.generate_outfits`/`generate_candidates`: score
+      candidates (top+bottom, or a dress; + outerwear when cold; + shoes when
+      available) over **clean-only, tagged** garments via `score_outfit`;
+      return the best non-overlapping combinations. See
+      docs/rotation-scoring-design-note.md for the algorithm.
+- [x] `GET /outfits/daily` (generate-and-persist on first request per day,
+      idempotent afterwards) + `POST /outfits/generate` ("regenerate" —
+      prefers a combination distinct from today's current one).
+- [x] `POST /outfits/{id}/feedback` → records a `FeedbackEvent`
+      (like/dislike/skip).
+- [x] `POST /outfits/{id}/wear` → mark each garment worn (state, `wear_count`,
+      `last_worn_at`).
+- [x] Dashboard: today's outfit, "regenerate", "wore this" (real data,
+      replacing the Sprint 1 mock).
+- [x] Swipe: swipes the real daily outfit — skip records "dislike" and
+      regenerates, like records "like".
+- **Not wired yet:** a weather chip in the UI (weather is used server-side to
+  filter outerwear/validity, but isn't surfaced to the user); `taste_weight`
+  stays unpopulated until Sprint 3 aggregates real `FeedbackEvent` data;
+  location comes from browser geolocation (falls back to a fixed default city
+  when denied/unavailable) rather than a saved per-user location.
+- **Milestone:** weather-aware, non-repeating daily suggestion you can accept. ✅
 
 ## Sprint 3 — Feedback loop + laundry UX + polish
 
