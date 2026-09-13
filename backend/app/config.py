@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # current model list at ai.google.dev if it 404s — Gemini model names get
     # retired/renamed over time.
     GEMINI_API_KEY: str = ""
-    VISION_MODEL: str = "gemini-2.5-flash"
+    VISION_MODEL: str = "gemini-3.6-flash"
 
     # --- Background removal fallback ---
     # rembg (local, U2Net) is tried first; if it's unavailable or fails, fall

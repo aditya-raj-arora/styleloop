@@ -94,7 +94,7 @@ def test_classify_parses_gemini_response(monkeypatch) -> None:
     assert result.category == "top"
     assert result.fabric_confidence == 0.9
     assert mock_post.call_args.kwargs["params"] == {"key": "test-key"}
-    assert "gemini-2.5-flash" in mock_post.call_args.args[0]
+    assert "gemini-3.6-flash" in mock_post.call_args.args[0]
 
 
 def test_classify_degrades_on_malformed_response(monkeypatch) -> None:
