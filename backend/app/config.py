@@ -78,6 +78,14 @@ class Settings(BaseSettings):
     # Origin header) — used to permit Vercel preview deployments. Blank disables it.
     FRONTEND_ORIGIN_REGEX: str = r"https://styleloop-[a-z0-9-]+\.vercel\.app"
 
+    # --- Observability (app/observability.py) ---
+    # Blank disables Sentry entirely — same "blank disables it" convention as
+    # the other API keys above. Never set in local dev/CI; set on the EC2
+    # box's .env for the real deploy.
+    SENTRY_DSN: str = ""
+    ENVIRONMENT: str = "development"
+    LOG_LEVEL: str = "INFO"
+
     @field_validator("DATABASE_URL")
     @classmethod
     def _normalize_db_url(cls, v: str) -> str:

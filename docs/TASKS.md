@@ -324,19 +324,27 @@ open, not standing up a first deploy — the app has been live since Sprint 1.
       reviewed by someone else" — reasonable for a single-maintainer
       project.)
 
-### Observability
+### Observability ✅ (code) — needs a DSN to actually activate
 
-- [ ] Error tracking (Sentry or similar) — wired into both the FastAPI app
-      (`main.py`) and the RQ worker (`workers/run.py`); currently a failure
-      in either is invisible unless someone happens to be tailing
-      `journalctl` on the EC2 box.
-- [ ] Structured logging: the worker already logs task failures
-      (`generate_tryon`, `process_garment`) via the stdlib `logging` module
-      with no configured level/format — set one explicitly (level from an
-      env var, not hardcoded) rather than relying on defaults. Re-confirm
-      the existing "never log photo bytes/URLs" rule (services/storage.py's
-      docstrings already state it) holds through whatever formatter/handler
-      gets added.
+- [x] Error tracking: `app/observability.py::configure_sentry`, called from
+      both `main.py` (API) and `workers/run.py` (worker, with
+      `RqIntegration` so a failed job reports automatically same as an
+      unhandled request exception does). No-ops without `SENTRY_DSN` set —
+      same "blank disables it" convention as the other API keys. `send_default_pii=False`
+      + `max_request_body_size="never"` so an uploaded photo can never end
+      up attached to an error report.
+      **Needs a Sentry project + DSN to actually turn on** — set
+      `SENTRY_DSN`/`ENVIRONMENT=production` in the EC2 box's `.env` (not
+      committed, not in CI) when there's an account to point it at.
+- [x] Structured logging: `configure_logging()` gives every process an
+      explicit level (`LOG_LEVEL`, default `INFO`) and format with a
+      timestamp — the worker previously had *no* configured handler at all
+      (not even from uvicorn, which only sets up its own named loggers, not
+      root), so `generate_tryon`/`process_garment`'s failure logs were
+      going nowhere more useful than Python's silent WARNING-only
+      last-resort handler. Re-confirmed the "never log photo bytes/URLs"
+      rule still holds — the new format string only adds
+      timestamp/level/logger name, no new fields that could carry one.
 
 ### Rate limiting + secrets
 
