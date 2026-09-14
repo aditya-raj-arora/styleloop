@@ -45,7 +45,14 @@ export default function Upload() {
 
   return (
     <UploadBackground>
-      <div className="p-4 sm:p-6 pb-24">
+      {/* pb-24 (the standard bottom-nav clearance used elsewhere) isn't
+          enough here specifically: this page's content is short enough
+          (dropzone + a small preview card) that the page barely scrolls, if
+          at all, so the "View in wardrobe" link can end up sitting in the
+          fixed Navbar's overlay band even after scrolling it "into view" -
+          found by the E2E suite's real click failing with "nav intercepts
+          pointer events", not a hunch. */}
+      <div className="p-4 sm:p-6 pb-40">
         <h1 className="text-3xl sm:text-4xl font-bold text-gray-800">Upload Garment</h1>
 
         <p className="text-gray-600 mt-2 mb-8">Add a new clothing item to your wardrobe.</p>
