@@ -55,13 +55,18 @@ jobs:
 
       - name: Start MinIO
         # A plain `docker run`, not a job-level `services:` entry: the
-        # official minio/minio image needs an explicit `server /data`
-        # command to actually start serving (bare `services:` in GitHub
-        # Actions can't override a container's command/entrypoint).
+        # official MinIO image needs an explicit `server /data` command to
+        # actually start serving (bare `services:` in GitHub Actions can't
+        # override a container's command/entrypoint). quay.io, not Docker
+        # Hub: MinIO removed its Docker Hub images (Sept 2026) -
+        # minio/minio now 401s on anonymous pulls with a misleading
+        # "access denied"/"docker login" message; quay.io is their current
+        # official distribution, same tags. Learned this the hard way on
+        # this workflow's first real run.
         run: |
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER=styleloop -e MINIO_ROOT_PASSWORD=styleloop123 \
-            minio/minio server /data
+            quay.io/minio/minio server /data
           for i in $(seq 1 20); do
             curl -sf http://localhost:9000/minio/health/live && break
             echo "Waiting for MinIO ($i/20)..."
