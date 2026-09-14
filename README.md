@@ -101,7 +101,13 @@ voguevault/
 
 ## Branching
 
-- `main` — protected; CI must pass before merge. Pushing to `main` (even a
-  fast-forward merge from `develop`) also triggers the EC2 backend deploy —
-  see "Deployment" above.
-- `develop` — integration branch for in-progress sprint work.
+- `main` — protected, **including for admins** (`enforce_admins` is on): CI
+  must pass on a PR before anything lands, no direct pushes, not even from
+  the repo owner. Promote `develop` → `main` by opening a PR and merging it
+  (`gh pr create --base main --head develop && gh pr merge --merge`), never
+  `git push origin main` directly — that used to silently bypass the rule
+  (`enforce_admins` was off); it now just fails. A merge to `main` also
+  triggers the EC2 backend deploy — see "Deployment" above.
+- `develop` — integration branch for in-progress sprint work. Feature/fix
+  branches merge here first (also via PR, CI-gated), then batches of
+  `develop` promote to `main` together.
