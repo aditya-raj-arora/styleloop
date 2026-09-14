@@ -1,0 +1,67 @@
+name: Deploy backend (EC2)
+
+# Runs after CI succeeds on main, so a push to main is never "live" until
+# it's actually passed lint + tests — the frontend already gets this for
+# free from Vercel's GitHub integration; the EC2-hosted backend has had no
+# equivalent until now (every backend PR up to this point ended with a
+# manual ssh + git pull + alembic upgrade head + systemctl restart).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+# Serialize deploys - never run two at once, but don't cancel/skip one
+# that's queued behind an in-progress run either (each push to main should
+# still end up deployed, in order).
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      # Adjust these if the EC2 box's actual layout differs - this reflects
+      # the manual runbook used for every deploy before this workflow
+      # existed, but wasn't independently verified against the live
+      # filesystem when writing this automation. First real run will show
+      # quickly if a path is wrong.
+      DEPLOY_PATH: ~/styleloop
+      VENV_PATH: ~/styleloop/backend/.venv
+      HEALTH_CHECK_URL: https://15-252-168-183.sslip.io/health
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          envs: DEPLOY_PATH,VENV_PATH
+          script: |
+            cd "$DEPLOY_PATH"
+            git fetch origin main
+            git checkout main
+            git reset --hard origin/main
+            source "$VENV_PATH/bin/activate"
+            pip install -q -r backend/requirements.txt
+            cd backend
+            alembic upgrade head
+            deactivate
+            sudo systemctl restart styleloop-api styleloop-worker
+
+      - name: Wait for the API to come back up
+        run: |
+          for i in $(seq 1 10); do
+            if curl -sf "$HEALTH_CHECK_URL" > /dev/null; then
+              echo "Backend is up."
+              exit 0
+            fi
+            echo "Not up yet (attempt $i/10) - retrying in 5s..."
+            sleep 5
+          done
+          echo "Backend did not come back up after restart - check the EC2 box." >&2
+          exit 1

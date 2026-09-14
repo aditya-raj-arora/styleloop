@@ -301,15 +301,18 @@ Actions (`ruff` + `pytest` + a Postgres service container, `npm run build`
 — no E2E, no deploy step). "Harden" means closing the gaps that are actually
 open, not standing up a first deploy — the app has been live since Sprint 1.
 
-### Deploy automation ✅ candidate for first
+### Deploy automation
 
-- [ ] **The EC2 backend has no CD** — every backend-touching PR this project
+- [x] **The EC2 backend has no CD** — every backend-touching PR this project
       has shipped ended with a manual `ssh` + `git pull` + `alembic upgrade
-      head` + `systemctl restart`. Automate it: a GitHub Actions job
-      (triggered on push to `main`, after the existing CI passes) that SSHs
-      in via a deploy key and runs those same steps. Removes the recurring
-      manual step, and makes "pushed to main" actually mean "live" the way
-      Vercel's frontend deploy already does.
+      head` + `systemctl restart`. Automated via
+      `.github/workflows/deploy.yml`: triggers once `CI` succeeds on `main`,
+      SSHes in, deploys, then polls `/health` before declaring success.
+      **Needs a one-time setup before it can actually run** — 3 repo
+      secrets (`EC2_HOST`/`EC2_USER`/`EC2_SSH_KEY`) it doesn't have yet; see
+      [docs/deploy-ec2-setup.md](deploy-ec2-setup.md). Until that's done the
+      workflow just fails cleanly (SSH auth error) without touching the box
+      — the old manual runbook still works as a fallback either way.
 - [ ] Fix the standing branch-protection bypass: `main` requires PRs, but
       every merge-to-main in this project has gone through a direct
       `git push` (fast-forward from `develop`) that GitHub reports as

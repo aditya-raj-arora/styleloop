@@ -79,6 +79,16 @@ docker compose up -d                    # Postgres 16 + Redis 7 + RQ worker
 docker compose --profile minio up -d    # ...plus local MinIO for object storage
 ```
 
+## Deployment
+
+- **Frontend:** Vercel, auto-deploys on push to `main` via its GitHub
+  integration.
+- **Backend:** a self-managed EC2 box (Caddy for TLS, systemd for the API +
+  RQ worker services). `.github/workflows/deploy.yml` SSHes in and deploys
+  automatically once CI passes on `main` — see
+  [docs/deploy-ec2-setup.md](docs/deploy-ec2-setup.md) for the one-time
+  secrets setup it needs.
+
 ## Repo layout
 
 ```
@@ -91,5 +101,7 @@ voguevault/
 
 ## Branching
 
-- `main` — protected; CI must pass before merge.
-- `develop` — integration branch for Sprint-1 work.
+- `main` — protected; CI must pass before merge. Pushing to `main` (even a
+  fast-forward merge from `develop`) also triggers the EC2 backend deploy —
+  see "Deployment" above.
+- `develop` — integration branch for in-progress sprint work.
