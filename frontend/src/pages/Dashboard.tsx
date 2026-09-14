@@ -1,13 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 
-import { ApiError, generateOutfit, getDailyOutfit, wearOutfit } from "../api/client";
+import {
+  ApiError,
+  generateOutfit,
+  getCurrentUser,
+  getDailyOutfit,
+  uploadBasePhoto,
+  wearOutfit,
+} from "../api/client";
 import AnimatedBackground from "../components/AnimatedBackground";
 import Navbar from "../components/Navbar";
 import { useGeolocation } from "../hooks/useGeolocation";
+import { useTryon } from "../hooks/useTryon";
 
 export default function Dashboard() {
   const { coords, loading: locating } = useGeolocation();
   const queryClient = useQueryClient();
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: user } = useQuery({ queryKey: ["me"], queryFn: getCurrentUser });
+
+  const uploadPhoto = useMutation({
+    mutationFn: uploadBasePhoto,
+    onSuccess: (updatedUser) => {
+      queryClient.setQueryData(["me"], updatedUser);
+    },
+  });
 
   // Wait for the (best-effort, capped) geolocation attempt to settle before
   // asking for today's outfit, so the very first request already carries
@@ -39,6 +58,14 @@ export default function Dashboard() {
     },
   });
 
+  const tryon = useTryon(outfit?.id);
+
+  function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (file) uploadPhoto.mutate(file);
+    event.target.value = ""; // allow re-selecting the same file later
+  }
+
   const hour = new Date().getHours();
 
   const greeting =
@@ -64,6 +91,30 @@ export default function Dashboard() {
         <p className="text-white/80 mt-2">
           Welcome back to VogueVault
         </p>
+
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={handlePhotoChange}
+          aria-label="Choose a photo of yourself for virtual try-on"
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm max-w-[65%] sm:max-w-md">
+          <span className="text-white/70">
+            {user?.base_photo_url
+              ? "📷 Try-on photo saved."
+              : "📷 Add a photo of yourself to try outfits on."}
+          </span>
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={uploadPhoto.isPending}
+            className="text-amber-300 font-medium underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white rounded"
+          >
+            {uploadPhoto.isPending ? "Uploading…" : user?.base_photo_url ? "Update" : "Upload"}
+          </button>
+        </div>
 
         <div
           className="mt-8 sm:mt-12 min-h-[320px] sm:min-h-[400px] rounded-3xl border-2 border-dashed border-white/40 flex flex-col justify-center items-center gap-4 p-6 text-center"
@@ -115,10 +166,47 @@ export default function Dashboard() {
                 >
                   {wear.isPending ? "Marking worn…" : "Wore this"}
                 </button>
+
+                {user?.base_photo_url && tryon.status === "idle" && (
+                  <button
+                    type="button"
+                    onClick={() => tryon.start()}
+                    className="bg-purple-500 hover:bg-purple-600 text-white px-5 py-2 rounded-full transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  >
+                    Try it on
+                  </button>
+                )}
               </div>
 
               {wear.isSuccess && (
                 <p className="text-white/70 text-xs mt-1">Logged — enjoy!</p>
+              )}
+
+              {tryon.status === "pending" && (
+                <p className="text-white/70 text-sm mt-2">Rendering on your photo…</p>
+              )}
+
+              {tryon.status === "ready" && tryon.imageUrl && (
+                <img
+                  src={tryon.imageUrl}
+                  alt="This outfit rendered on your photo"
+                  className="mt-3 max-h-72 rounded-2xl shadow-lg"
+                />
+              )}
+
+              {tryon.status === "failed" && (
+                <div className="mt-2 text-center">
+                  <p role="alert" className="text-white/70 text-sm">
+                    {tryon.errorMessage ?? "Couldn't render right now."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => tryon.start()}
+                    className="text-amber-300 text-sm font-medium underline mt-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white rounded"
+                  >
+                    Try again
+                  </button>
+                </div>
               )}
             </>
           )}

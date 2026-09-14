@@ -2,13 +2,14 @@
 
 An AI wardrobe manager. Users upload their clothes; the app auto-tags them, tracks
 laundry state, and generates fresh, weather-aware, non-repeating daily outfit
-suggestions via a novelty-optimizing rotation engine with swipe feedback. A later
-release adds virtual try-on (rendering outfits on the user's photo via the FASHN API
-through fal.ai).
+suggestions via a novelty-optimizing rotation engine with swipe feedback. Also
+renders outfits on the user's own photo via virtual try-on (the FASHN model,
+called through fal.ai).
 
-> **Sprint-1 status:** Auth (`/auth/signup`, `/auth/login`, `/auth/me`, JWT bearer
-> tokens) is implemented. Upload/tagging, weather, and rotation are still stubbed
-> with clear TODOs — see [docs/TASKS.md](docs/TASKS.md) for the in-progress breakdown.
+> **Status:** Sprints 1-4 are implemented — auth, the upload/tagging pipeline,
+> the rotation engine (weather-aware, taste-weighted, non-repeating), laundry
+> management, and virtual try-on. See [docs/TASKS.md](docs/TASKS.md) for what's
+> shipped vs. still planned (Sprint 5: beta hardening & launch).
 
 ## Architecture
 
@@ -82,8 +83,8 @@ docker compose --profile minio up -d    # ...plus local MinIO for object storage
 
 ```
 voguevault/
-  backend/      FastAPI app, models, routers (stubbed), services (stubbed), worker, tests
-  frontend/     React + TS + Vite shell (pages/components stubbed)
+  backend/      FastAPI app, models, routers, services, RQ worker, tests
+  frontend/     React + TS + Vite app
   docs/         TASKS.md and planning docs
   .github/      CI + CD workflows
 ```

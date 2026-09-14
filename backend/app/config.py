@@ -31,7 +31,16 @@ class Settings(BaseSettings):
 
     # --- External APIs ---
     OPENWEATHER_API_KEY: str = ""
+    # A fal.ai API key (not a FASHN-issued one) — FASHN's try-on model is
+    # called through fal.ai's queue API. See services/tryon.py.
     FASHN_API_KEY: str = ""
+
+    # --- Virtual try-on (services/tryon.py, routers/outfits.py) ---
+    # Plain per-user count of tryon_renders rows created "today" (UTC).
+    # Cache hits don't count against it — re-serving a cached render costs
+    # nothing. Keep low: each generation is a real (queued, few-second) API
+    # call per garment in the outfit.
+    TRYON_DAILY_CAP: int = 5
 
     # --- Rotation engine (services/rotation.py, routers/outfits.py) ---
     # Fallback coordinates for GET /outfits/daily and POST /outfits/generate

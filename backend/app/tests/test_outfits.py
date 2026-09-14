@@ -7,11 +7,13 @@ through the upload+tagging pipeline. `weather.get_weather` is monkeypatched —
 these tests are about the rotation/persistence contract, not OpenWeatherMap.
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
+from app.config import settings
 from app.models.garment import Garment
+from app.models.tryon import TryonRender
 from app.security import create_access_token
 from app.services import weather as weather_service
 from app.tests.conftest import make_garment, make_user
@@ -160,3 +162,206 @@ def test_wear_404s_for_another_users_outfit(client, db_session) -> None:
 
     response = client.post(f"/outfits/{outfit['id']}/wear", headers=_auth_headers(other))
     assert response.status_code == 404
+
+
+# --- /outfits/{id}/tryon --------------------------------------------------
+
+
+class _FakeQueue:
+    def __init__(self) -> None:
+        self.enqueued: list[tuple] = []
+
+    def enqueue(self, func_path: str, *args, **kwargs) -> None:
+        self.enqueued.append((func_path, args, kwargs))
+
+
+@pytest.fixture
+def _fake_tryon_infra(monkeypatch):
+    fake_queue = _FakeQueue()
+    monkeypatch.setattr("app.routers.outfits.get_queue", lambda: fake_queue)
+    monkeypatch.setattr(
+        "app.routers.outfits.storage.presigned_download_url",
+        lambda key, expires_seconds=900: f"https://fake.test/{key}",
+    )
+    return fake_queue
+
+
+def test_tryon_requires_a_base_photo(client, db_session, _fake_tryon_infra) -> None:
+    user = make_user(db_session)
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    response = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+
+    assert response.status_code == 422
+    assert _fake_tryon_infra.enqueued == []
+
+
+def test_tryon_enqueues_and_returns_pending(client, db_session, _fake_tryon_infra) -> None:
+    user = make_user(db_session)
+    user.base_photo_url = "users/1/base.png"
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    response = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "pending", "rendered_url": None}
+    assert _fake_tryon_infra.enqueued == [
+        ("app.workers.tasks.generate_tryon", (user.id, outfit["id"]), {})
+    ]
+
+
+def test_tryon_returns_cached_render_without_enqueueing(
+    client, db_session, _fake_tryon_infra
+) -> None:
+    user = make_user(db_session)
+    user.base_photo_url = "users/1/base.png"
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    db_session.add(
+        TryonRender(
+            user_id=user.id,
+            outfit_id=outfit["id"],
+            photo_version=user.base_photo_version,
+            rendered_url="tryon/1/cached.png",
+        )
+    )
+    db_session.commit()
+
+    response = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["status"] == "ready"
+    assert body["rendered_url"] == "https://fake.test/tryon/1/cached.png"
+    assert _fake_tryon_infra.enqueued == []  # cache hit - never touched the queue
+
+
+def test_tryon_ignores_a_render_cached_against_a_mismatched_photo_version(
+    client, db_session, _fake_tryon_infra
+) -> None:
+    user = make_user(db_session)
+    user.base_photo_url = "users/1/base.png"
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    db_session.add(
+        TryonRender(
+            user_id=user.id,
+            outfit_id=outfit["id"],
+            photo_version=user.base_photo_version + 1,  # a future/mismatched version
+            rendered_url="tryon/1/stale.png",
+        )
+    )
+    db_session.commit()
+
+    response = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+
+    assert response.json()["status"] == "pending"
+    assert len(_fake_tryon_infra.enqueued) == 1
+
+
+def test_tryon_enforces_the_daily_cap(client, db_session, _fake_tryon_infra, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "TRYON_DAILY_CAP", 1)
+
+    user = make_user(db_session)
+    user.base_photo_url = "users/1/base.png"
+    # Two tops so /outfits/generate below can produce a genuinely different
+    # second outfit rather than falling back to the same combination.
+    make_garment(db_session, user, category="top", season="all_season")
+    make_garment(db_session, user, category="top", season="all_season")
+    make_garment(db_session, user, category="bottom", season="all_season")
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    first = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+    assert first.status_code == 202
+
+    # Simulate the worker having actually generated the first one (this test
+    # mocks the queue, so the job never really runs) - a real cached row is
+    # what the cap counts, and it needs a real outfit_id (FK constraint).
+    db_session.add(
+        TryonRender(
+            user_id=user.id,
+            outfit_id=outfit["id"],
+            photo_version=user.base_photo_version,
+            rendered_url="tryon/1/outfit.png",
+            created_at=datetime.now(timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    second_outfit = client.post("/outfits/generate", headers=_auth_headers(user)).json()
+    second = client.post(f"/outfits/{second_outfit['id']}/tryon", headers=_auth_headers(user))
+    assert second.status_code == 429
+
+
+def test_tryon_cap_only_counts_todays_renders(
+    client, db_session, _fake_tryon_infra, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "TRYON_DAILY_CAP", 1)
+
+    user = make_user(db_session)
+    user.base_photo_url = "users/1/base.png"
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    db_session.add(
+        TryonRender(
+            user_id=user.id,
+            outfit_id=outfit["id"],
+            photo_version=99,  # won't match, so this isn't a cache hit either
+            rendered_url="tryon/1/yesterday.png",
+            created_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+    )
+    db_session.commit()
+
+    response = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+    assert response.status_code == 202  # yesterday's render doesn't count against today's cap
+
+
+def test_tryon_404s_for_another_users_outfit(client, db_session, _fake_tryon_infra) -> None:
+    owner = make_user(db_session)
+    other = make_user(db_session)
+    other.base_photo_url = "users/2/base.png"
+    _outfit_wardrobe(db_session, owner)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(owner)).json()
+
+    response = client.post(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(other))
+    assert response.status_code == 404
+
+
+def test_get_tryon_is_pending_until_a_render_is_cached(
+    client, db_session, _fake_tryon_infra
+) -> None:
+    user = make_user(db_session)
+    user.base_photo_url = "users/1/base.png"
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    pending = client.get(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+    assert pending.json() == {"status": "pending", "rendered_url": None}
+
+    db_session.add(
+        TryonRender(
+            user_id=user.id,
+            outfit_id=outfit["id"],
+            photo_version=user.base_photo_version,
+            rendered_url="tryon/1/ready.png",
+        )
+    )
+    db_session.commit()
+
+    ready = client.get(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
+    assert ready.json()["status"] == "ready"
+    assert ready.json()["rendered_url"] == "https://fake.test/tryon/1/ready.png"
