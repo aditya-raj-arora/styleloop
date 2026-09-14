@@ -31,9 +31,14 @@ export interface Token {
   token_type: string;
 }
 
+// Mirrors backend/app/schemas/auth.py::UserOut. `base_photo_url` is an
+// already-presigned download URL (or null until POST /auth/me/photo);
+// `base_photo_version` is the virtual try-on cache key's version component.
 export interface User {
   id: number;
   email: string;
+  base_photo_url: string | null;
+  base_photo_version: number;
   created_at: string;
 }
 
@@ -127,6 +132,14 @@ export function getCurrentUser(): Promise<User> {
   return apiFetch<User>("/auth/me");
 }
 
+// Sets (or replaces) the virtual try-on base photo. Bumps base_photo_version
+// server-side, which invalidates old cached try-on renders.
+export function uploadBasePhoto(file: File): Promise<User> {
+  const form = new FormData();
+  form.append("file", file);
+  return apiUpload<User>("/auth/me/photo", form);
+}
+
 // --- Garments ---
 
 export function listGarments(): Promise<Garment[]> {
@@ -207,4 +220,24 @@ export function wearOutfit(id: number): Promise<{ status: string; garment_ids: n
   return apiFetch<{ status: string; garment_ids: number[] }>(`/outfits/${id}/wear`, {
     method: "POST",
   });
+}
+
+// --- Virtual try-on (Sprint 4) ---
+//
+// Mirrors backend/app/schemas/tryon.py::TryonOut. `rendered_url` is a
+// presigned download URL, set only once `status` is "ready". A cache hit on
+// POST returns "ready" immediately; a miss enqueues generation and returns
+// "pending" — poll GET until it flips (or give up after a while and fall
+// back to the flat outfit view — generation can fail silently server-side).
+export interface TryonResult {
+  status: "pending" | "ready";
+  rendered_url: string | null;
+}
+
+export function requestTryon(outfitId: number): Promise<TryonResult> {
+  return apiFetch<TryonResult>(`/outfits/${outfitId}/tryon`, { method: "POST" });
+}
+
+export function getTryon(outfitId: number): Promise<TryonResult> {
+  return apiFetch<TryonResult>(`/outfits/${outfitId}/tryon`);
 }

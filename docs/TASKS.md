@@ -217,82 +217,79 @@ nothing reads that history back into scoring yet. That's this sprint's core.
 
 Sprint 3 is now fully done.
 
-## Sprint 4 — Virtual try-on
+## Sprint 4 — Virtual try-on ✅
 
-**Correction to the Sprint 1 stub:** `services/tryon.render_tryon` and
-`workers/tasks.generate_tryon` currently take a single `garment_id` — but
-try-on renders an *outfit* (top+bottom, or a dress, plus whatever else the
-rotation engine picked), not one garment in isolation. Both need to take
-`outfit_id` (→ `Outfit.garment_ids`) instead. Caught while planning this
-sprint, not yet fixed in code.
+**Correction to the Sprint 1 stub, fixed:** `services/tryon.render_tryon`
+and `workers/tasks.generate_tryon` now take `outfit_id` (→
+`Outfit.garment_ids`), not a single `garment_id`.
 
-### Base photo
+**Resolved open question:** checked FASHN's actual API
+([fal.ai/models/fal-ai/fashn/tryon/v1.6](https://fal.ai/models/fal-ai/fashn/tryon/v1.6/api)) —
+it takes exactly one `garment_image` per call (`category`:
+`tops`/`bottoms`/`one-pieces`/`auto`, no outerwear/shoes) and cannot
+composite multiple garments. Went with **sequential chaining**: render the
+first garment onto the base photo, then render the second onto *that*
+output, and so on. Outerwear/shoes are silently skipped (no matching FASHN
+category) rather than failing the whole render — a coat still shows the
+shirt+pants underneath.
 
-- [ ] `User.base_photo_version: int` (new column, default 0) — `base_photo_url`
-      alone can't tell "the user re-uploaded the same slot" from "still the
-      old photo," and the try-on cache key needs that distinction.
-- [ ] `POST /users/me/photo` (multipart, same size/type validation as
-      `POST /garments`): upload to the bucket, set `base_photo_url` to the new
-      key, bump `base_photo_version`. Bumping the version is what
-      invalidates old cached renders — they're keyed by version, not deleted.
-- [ ] Frontend: a base-photo upload control. Leaning toward putting it
-      directly on the Dashboard (prompt when `base_photo_url` is null,
-      "Update photo" once set) rather than a whole new `/profile` route —
-      it's the only thing that would live there. Revisit if that gets
-      cramped once try-on's own UI is in place.
+### Base photo ✅
 
-### Try-on generation
+- [x] `User.base_photo_version: int` (new column, default 0).
+- [x] `POST /auth/me/photo` (multipart, same size/type validation as
+      `POST /garments`) — uploads, sets `base_photo_url`, bumps
+      `base_photo_version`. (Landed on `/auth/me/photo`, next to the existing
+      `/auth/me`, rather than a separate `/users` router.)
+- [x] Frontend: base-photo prompt/upload control on the Dashboard, as
+      planned (no separate `/profile` route).
 
-- [ ] `tryon_renders` table: `id`, `user_id`, `outfit_id` (FK), `photo_version`,
-      `rendered_url` (storage key), `created_at`. The cache key is
-      `(user_id, outfit_id, photo_version)` — look up a matching row before
-      generating anything new.
-- [ ] `services/tryon.render_tryon(user_id, outfit_id, photo_version)`: calls
-      FASHN via fal.ai. **Open question to resolve during implementation**:
-      FASHN's API renders one garment onto a photo at a time — an outfit with
-      outerwear/shoes may need multiple layered calls, or a v1 that only
-      renders the "anchor" garment (the top, or the dress) and accepts that
-      as a known limitation. Decide once actually looking at FASHN's API
-      docs, not guessed here.
-- [ ] `workers/tasks.generate_tryon(user_id, outfit_id)`: idempotent like
-      `process_garment` — look up the outfit + user's current
-      `base_photo_url`/`base_photo_version`, render, upload the result,
-      insert the `tryon_renders` row. Never crashes the worker on a FASHN
-      error — logs and leaves the row absent so the API's fallback path
-      (below) kicks in.
-- [ ] `TRYON_DAILY_CAP` setting (config.py) — a plain per-user count of
-      `tryon_renders` rows created today; reject new generation over the cap
-      (cached hits don't count against it — they cost nothing to re-serve).
+### Try-on generation ✅
 
-### API
+- [x] `tryon_renders` table — `(user_id, outfit_id, photo_version)` unique
+      constraint doubles as the cache key.
+- [x] `services/tryon.render_tryon(base_photo_url, garments)`: sequential
+      FASHN-through-fal.ai calls (queue submit → poll status → fetch
+      result), per the resolved design above. Pure-ish — takes URLs/a
+      garment list, no DB access; the worker owns persistence.
+- [x] `workers/tasks.generate_tryon(user_id, outfit_id)`: idempotent (a
+      cache hit short-circuits before spending a FASHN call), never raises
+      on a render failure — logs and leaves no row, so the API's fallback
+      path (below) applies.
+- [x] `TRYON_DAILY_CAP` setting (default 5) — counts `tryon_renders` rows
+      created today; cache hits don't count against it.
 
-- [ ] `POST /outfits/{id}/tryon`: cache hit → return the cached render
-      immediately. Cache miss → over the daily cap → 429 with a clear detail
-      message. Otherwise enqueue `generate_tryon` and return 202 (same
-      immediate-202-then-poll shape as `POST /garments`).
-- [ ] `GET /outfits/{id}/tryon`: poll endpoint — null/pending until the
-      worker's row lands, matching the `processed_url` polling pattern
-      Wardrobe already uses.
+### API ✅
 
-### Frontend
+- [x] `POST /outfits/{id}/tryon`: cache hit → 202 with the ready render.
+      Cache miss + over cap → 429. Otherwise enqueues and returns 202
+      pending.
+- [x] `GET /outfits/{id}/tryon`: poll endpoint, pending until the worker's
+      row lands.
 
-- [ ] Dashboard: a "Try it on" button on the daily outfit card, on-demand
-      only (never auto-triggered — it costs real money per render). Polls
-      like Wardrobe's garment grid does. On cap/error, falls back to the
-      existing flat outfit view rather than showing a broken state — that
-      view already exists and needs no changes for this.
+### Frontend ✅
 
-### Testing
+- [x] Dashboard: "Try it on" button (only shown once a base photo exists),
+      new `useTryon` hook polls for up to ~30s and then shows a "try again"
+      fallback rather than declaring the outfit unrenderable — the worker
+      may still finish after the frontend gives up, and the next click hits
+      the cache instantly if so.
 
-- `services/tryon` and the worker task: mock the FASHN/fal.ai call
-  (monkeypatch, same pattern as `test_tagging.py`/`test_bg_removal.py`) —
-  cache-hit short-circuits generation, daily cap is enforced, a
-  provider error doesn't crash the task.
-- `/outfits/{id}/tryon` endpoint: cache hit returns immediately, cap
-  rejection is a clean 4xx, ownership checks (404 for another user's
-  outfit) match the existing `/outfits` tests.
+### Testing ✅
 
-- **Milestone:** outfits rendered on the user's photo, cost-capped and cached.
+- `test_tryon.py`: `render_tryon` sequencing/chaining, category mapping,
+  skip-unsupported-categories, HTTP error wrapping, unexpected-status and
+  timeout handling — all FASHN calls mocked.
+- `test_workers_tryon.py`: `generate_tryon`'s idempotency (cache hit
+  short-circuits), render-order (dress/top/bottom), and failure handling
+  (no crash, no row) — run directly against the transactional DB fixtures.
+- `test_outfits.py` / `test_auth.py`: cache hit vs. miss, photo-version
+  mismatch is treated as a miss, daily cap enforcement (and that it only
+  counts *today's* renders), 404 ownership checks, base-photo upload
+  version bumping and content-type validation.
+- Full suite (108 tests) passes against the real Neon DB, including a live
+  `alembic upgrade head` run. `ruff check` clean, `npm run build` clean.
+
+- **Milestone:** outfits rendered on the user's photo, cost-capped and cached. ✅
 
 ## Sprint 5 — Beta hardening & launch
 

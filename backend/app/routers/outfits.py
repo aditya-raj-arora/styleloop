@@ -20,8 +20,12 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.garment import Garment
 from app.models.outfit import FeedbackEvent, Outfit
+from app.models.tryon import TryonRender
 from app.models.user import User
+from app.queue import get_queue
 from app.schemas.outfit import FeedbackIn, OutfitOut
+from app.schemas.tryon import TryonOut
+from app.services import storage
 from app.services import weather as weather_service
 from app.services.rotation import ScoringGarment, generate_outfits
 from app.services.taste import compute_taste_weights
@@ -209,3 +213,83 @@ def wear(
     db.commit()
 
     return {"status": "worn", "garment_ids": [g.id for g in garments]}
+
+
+def _cached_tryon(db: Session, user: User, outfit_id: int) -> TryonRender | None:
+    """The render matching this outfit + the user's *current* base photo —
+    keyed by (user_id, outfit_id, photo_version), so a stale render from a
+    since-replaced base photo never counts as a hit."""
+    return (
+        db.query(TryonRender)
+        .filter(
+            TryonRender.user_id == user.id,
+            TryonRender.outfit_id == outfit_id,
+            TryonRender.photo_version == user.base_photo_version,
+        )
+        .first()
+    )
+
+
+def _tryon_ready(render: TryonRender) -> TryonOut:
+    return TryonOut(
+        status="ready", rendered_url=storage.presigned_download_url(render.rendered_url)
+    )
+
+
+@router.post("/{outfit_id}/tryon", status_code=status.HTTP_202_ACCEPTED, response_model=TryonOut)
+def request_tryon(
+    outfit_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TryonOut:
+    """Kick off a try-on render, or return the cached one if this exact
+    outfit + base photo combination has already been rendered. Enforces the
+    daily cap only on the *generate* path — re-serving a cache hit is free."""
+    outfit = db.get(Outfit, outfit_id)
+    if outfit is None or outfit.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+
+    if current_user.base_photo_url is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Upload a base photo (POST /auth/me/photo) before requesting a try-on.",
+        )
+
+    cached = _cached_tryon(db, current_user, outfit_id)
+    if cached is not None:
+        return _tryon_ready(cached)
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    today_count = (
+        db.query(TryonRender)
+        .filter(TryonRender.user_id == current_user.id, TryonRender.created_at >= today_start)
+        .count()
+    )
+    if today_count >= settings.TRYON_DAILY_CAP:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Daily try-on limit ({settings.TRYON_DAILY_CAP}) reached — try again tomorrow.",
+        )
+
+    get_queue().enqueue("app.workers.tasks.generate_tryon", current_user.id, outfit_id)
+    return TryonOut(status="pending")
+
+
+@router.get("/{outfit_id}/tryon", response_model=TryonOut)
+def get_tryon(
+    outfit_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TryonOut:
+    """Poll for a render kicked off by `POST .../tryon`. Stays "pending"
+    forever if generation failed (see workers/tasks.generate_tryon) — the
+    frontend is expected to give up after a reasonable number of polls and
+    fall back to the flat outfit view."""
+    outfit = db.get(Outfit, outfit_id)
+    if outfit is None or outfit.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+
+    cached = _cached_tryon(db, current_user, outfit_id)
+    if cached is None:
+        return TryonOut(status="pending")
+    return _tryon_ready(cached)
