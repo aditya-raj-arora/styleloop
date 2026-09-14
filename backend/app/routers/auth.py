@@ -6,13 +6,15 @@ JWT-based auth. Signup hashes the password and creates a User; login verifies an
 returns a JWT to be sent as `Authorization: Bearer <token>`.
 """
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
+from app.rate_limiting import limiter
 from app.schemas.auth import LoginRequest, SignupRequest, Token, UserOut
 from app.security import create_access_token, hash_password, verify_password
 from app.services import storage
@@ -41,7 +43,8 @@ def _user_out(user: User) -> UserOut:
 
 
 @router.post("/signup", response_model=Token, status_code=status.HTTP_201_CREATED)
-def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> Token:
+@limiter.limit(settings.AUTH_RATE_LIMIT)
+def signup(request: Request, payload: SignupRequest, db: Session = Depends(get_db)) -> Token:
     user = User(email=payload.email.lower(), hashed_password=hash_password(payload.password))
     db.add(user)
     try:
@@ -56,7 +59,8 @@ def signup(payload: SignupRequest, db: Session = Depends(get_db)) -> Token:
 
 
 @router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> Token:
+@limiter.limit(settings.AUTH_RATE_LIMIT)
+def login(request: Request, payload: LoginRequest, db: Session = Depends(get_db)) -> Token:
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     if user is None or not verify_password(payload.password, user.hashed_password):
         # Same error for "no such user" and "wrong password" — don't leak which.
