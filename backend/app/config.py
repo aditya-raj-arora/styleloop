@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     # Origin header) — used to permit Vercel preview deployments. Blank disables it.
     FRONTEND_ORIGIN_REGEX: str = r"https://styleloop-[a-z0-9-]+\.vercel\.app"
 
+    # --- Rate limiting (app/rate_limiting.py, routers/auth.py) ---
+    # A "limits" library rate string (e.g. "10/minute") applied per-IP to
+    # /auth/signup and /auth/login — credential stuffing / signup-spam
+    # protection. Disabled automatically under pytest (see
+    # app/rate_limiting.py), not via this setting.
+    AUTH_RATE_LIMIT: str = "10/minute"
+
     # --- Observability (app/observability.py) ---
     # Blank disables Sentry entirely — same "blank disables it" convention as
     # the other API keys above. Never set in local dev/CI; set on the EC2

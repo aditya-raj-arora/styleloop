@@ -346,17 +346,23 @@ open, not standing up a first deploy — the app has been live since Sprint 1.
       rule still holds — the new format string only adds
       timestamp/level/logger name, no new fields that could carry one.
 
-### Rate limiting + secrets
+### Rate limiting + secrets ✅
 
-- [ ] `/auth/signup` and `/auth/login` have no rate limiting — a real gap
-      before real users (credential stuffing / signup spam). Add per-IP
-      limiting (e.g. `slowapi`) to both.
-- [ ] Secrets rotation checklist: `JWT_SECRET`, `STORAGE_*` keys,
-      `DATABASE_URL`, `GEMINI_API_KEY`, `OPENWEATHER_API_KEY`,
-      `FASHN_API_KEY` all live in one `.env` on the EC2 box with no
-      documented rotation process. Write the checklist (what to rotate, in
-      what order, how to verify nothing broke) — don't need to execute a
-      rotation this sprint, just have the runbook ready before it's urgent.
+- [x] `/auth/signup` and `/auth/login` had no rate limiting. Added per-IP
+      limiting via `slowapi` (`AUTH_RATE_LIMIT`, default `10/minute`) —
+      `app/rate_limiting.py` holds the shared `Limiter` (a separate module
+      from `main.py` to avoid a circular import with the routers).
+      Automatically disabled under pytest (the whole suite shares
+      TestClient's one fake "IP"; a real limit would trip partway through
+      an unrelated test) — `test_rate_limiting.py` explicitly re-enables it
+      to verify the actual enforcement, including that signup and login are
+      limited independently of each other.
+- [x] Secrets rotation checklist written:
+      [docs/secrets-rotation-checklist.md](secrets-rotation-checklist.md) —
+      every secret, where it's set, the generate-before-revoke rotation
+      order, and how to verify each one after rotating. Not executed this
+      sprint (nothing was compromised) — it's the runbook to have ready
+      before a rotation is urgent, per the original plan.
 
 ### E2E tests + CI
 
