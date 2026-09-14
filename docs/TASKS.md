@@ -308,18 +308,21 @@ open, not standing up a first deploy — the app has been live since Sprint 1.
       head` + `systemctl restart`. Automated via
       `.github/workflows/deploy.yml`: triggers once `CI` succeeds on `main`,
       SSHes in, deploys, then polls `/health` before declaring success.
-      **Needs a one-time setup before it can actually run** — 3 repo
-      secrets (`EC2_HOST`/`EC2_USER`/`EC2_SSH_KEY`) it doesn't have yet; see
-      [docs/deploy-ec2-setup.md](deploy-ec2-setup.md). Until that's done the
-      workflow just fails cleanly (SSH auth error) without touching the box
-      — the old manual runbook still works as a fallback either way.
-- [ ] Fix the standing branch-protection bypass: `main` requires PRs, but
-      every merge-to-main in this project has gone through a direct
-      `git push` (fast-forward from `develop`) that GitHub reports as
-      "Bypassed rule violations." Either stop pushing to `main` directly
-      (open a PR from `develop` instead) or accept the bypass deliberately
-      — but a rule silently bypassed on every single use isn't really a
-      rule. Decide and document which.
+      Set up and verified end-to-end: pushed to `main`, watched the
+      workflow SSH in, migrate, restart, and pass its `/health` poll for
+      real. See [docs/deploy-ec2-setup.md](deploy-ec2-setup.md) if it ever
+      needs redoing (e.g. the deploy key rotates).
+- [x] Fixed the standing branch-protection bypass: `main`'s `enforce_admins`
+      was `false`, so the repo owner's direct `git push` (fast-forward from
+      `develop`) silently skipped the "must go through a PR" rule every
+      time. Turned it on
+      (`gh api -X POST .../branches/main/protection/enforce_admins`) —
+      confirmed enabled. Promoting `develop` → `main` is now always a real
+      PR (`gh pr create --base main --head develop && gh pr merge`); a
+      direct push fails outright. (`required_approving_review_count` is
+      still 0, so this only closes the "must be a PR" gap, not "must be
+      reviewed by someone else" — reasonable for a single-maintainer
+      project.)
 
 ### Observability
 
