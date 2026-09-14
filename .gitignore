@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+*.pem
+*.ppk
+styleloop-deploy-key
+styleloop-deploy-key.pub
 
 # ---- Python ----
 __pycache__/
