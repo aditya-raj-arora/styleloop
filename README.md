@@ -79,6 +79,14 @@ docker compose up -d                    # Postgres 16 + Redis 7 + RQ worker
 docker compose --profile minio up -d    # ...plus local MinIO for object storage
 ```
 
+## E2E tests
+
+Playwright, against the real full stack (frontend + backend + Postgres +
+Redis) — see [e2e/README.md](e2e/README.md) for how to run it locally and
+what it does/doesn't cover (no external API keys are used, so the async
+upload-tagging and try-on-rendering pipelines are exercised through their
+real "still pending" states, not to completion).
+
 ## Deployment
 
 - **Frontend:** Vercel, auto-deploys on push to `main` via its GitHub

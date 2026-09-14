@@ -364,16 +364,33 @@ open, not standing up a first deploy — the app has been live since Sprint 1.
       sprint (nothing was compromised) — it's the runbook to have ready
       before a rotation is urgent, per the original plan.
 
-### E2E tests + CI
+### E2E tests + CI ✅
 
-- [ ] Playwright suite for the core flows: signup → login → upload →
-      wardrobe; generate → regenerate → wear; swipe like/dislike; laundry
-      bulk-reset; base-photo upload → try-on (mock FASHN in the test
-      environment — a real call costs money and is slow).
-- [ ] New CI job running that suite against the full stack (Postgres +
-      Redis + backend + frontend, likely via `docker compose` in CI) —
-      currently backend and frontend are tested in isolation from each
-      other; nothing exercises them together.
+- [x] Playwright suite (`e2e/`) for the core flows: signup/login + protected
+      routes, upload → wardrobe, daily outfit generate/regenerate/wear,
+      swipe like/dislike, laundry send-to-laundry + bulk reset, base-photo
+      upload → try-on. No external API keys in this environment (no real
+      account to spend against in CI) — see `e2e/README.md` for exactly
+      what that means for the upload/tagging and try-on specs (they verify
+      the real "still processing"/"pending" states, not that generation
+      completes; that's the backend unit tests' job).
+- [x] New `E2E (Playwright)` CI job (`.github/workflows/e2e.yml`) — Postgres
+      + Redis as service containers (matching the existing backend job),
+      MinIO started via a plain `docker run` (GitHub Actions' `services:`
+      can't override a container's command, and the official MinIO image
+      needs one), backend API + RQ worker + frontend dev server started as
+      background steps, `scripts/seed.py` for the demo user. Runs
+      alongside (not instead of) the existing backend/frontend jobs.
+- [x] **Found and fixed a real bug while wiring this up**: `weather.get_weather`
+      had no fallback at all — a blank/unset `OPENWEATHER_API_KEY` (this E2E
+      environment has none, and in production, any transient OpenWeatherMap
+      outage) would raise all the way up through `GET /outfits/daily`,
+      500ing on every outfit generation. It now degrades to
+      `{"temp_c": None, ...}` on any failure — `rotation._validity` already
+      treats `temp_c is None` as "no weather signal, don't penalize" (that
+      handling existed since Sprint 2; nothing called it with a real failure
+      before). A failed lookup is never cached, so the next call retries
+      instead of being stuck on "unknown" for the full TTL.
 
 ### Production polish
 
