@@ -24,5 +24,7 @@ test("like records a preference and confirms in place", async ({ page }) => {
   const likeButton = page.getByRole("button", { name: "Like this outfit" });
   await likeButton.click();
 
-  await expect(page.getByRole("button", { name: "Liked!" })).toBeDisabled();
+  // The button's aria-label mirrors its visible text ("Liked!") once liked -
+  // see Swipe.tsx's comment on why it can't stay hardcoded.
+  await expect(page.getByRole("button", { name: "Liked this outfit" })).toBeDisabled();
 });
