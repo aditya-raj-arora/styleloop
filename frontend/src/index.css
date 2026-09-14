@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Light-theme only (see index.html's color-scheme meta) — pin an explicit
+   background so a browser that ignores that meta still renders correctly
+   rather than falling back to whatever dark default it would otherwise
+   paint behind unstyled content. */
+html, body {
+  background: white;
+  color-scheme: light;
+}
+
 /* ---------------- Clouds ---------------- */
 
 .cloud {

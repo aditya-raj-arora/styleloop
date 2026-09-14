@@ -6,6 +6,7 @@ import { listGarments, resetLaundry, setGarmentState } from "../api/client";
 import GarmentCard from "../components/GarmentCard";
 import Navbar from "../components/Navbar";
 import WardrobeBackground from "../components/wardrobeBackground";
+import { useIsNight } from "../hooks/useIsNight";
 
 type Filter = "all" | GarmentState;
 
@@ -19,6 +20,10 @@ const _FILTERS: { value: Filter; label: string }[] = [
 export default function Wardrobe() {
   const [filter, setFilter] = useState<Filter>("all");
   const queryClient = useQueryClient();
+  // WardrobeBackground goes dark at night (moon + stars) — this page's text
+  // was hardcoded for its pale daytime gradients only, so it went nearly
+  // unreadable after dark. Mirror the same day/night split here instead.
+  const isNight = useIsNight();
 
   const { data: garments, isLoading, isError } = useQuery({
     queryKey: ["garments"],
@@ -56,26 +61,35 @@ export default function Wardrobe() {
 
   return (
     <WardrobeBackground>
-      <div className="p-6 pb-24">
-        <h1 className="text-4xl font-bold text-gray-800">My Wardrobe</h1>
+      <div className="p-4 sm:p-6 pb-24">
+        <h1 className={`text-3xl sm:text-4xl font-bold ${isNight ? "text-white" : "text-gray-800"}`}>
+          My Wardrobe
+        </h1>
 
-        <p className="text-gray-600 mt-2 mb-4">
+        <p className={`mt-2 mb-4 ${isNight ? "text-white/80" : "text-gray-600"}`}>
           {garments?.length
             ? `${garments.length} item${garments.length === 1 ? "" : "s"} in your closet.`
             : "Your uploaded clothes, all in one place."}
         </p>
 
         {garments && garments.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 mb-6">
+          <div
+            className="flex flex-wrap items-center gap-2 mb-6"
+            role="group"
+            aria-label="Filter by laundry state"
+          >
             {_FILTERS.map(({ value, label }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => setFilter(value)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${
+                aria-pressed={filter === value}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
                   filter === value
-                    ? "bg-gray-800 text-white"
-                    : "bg-white/60 text-gray-700 hover:bg-white/90"
+                    ? "bg-gray-800 text-white focus-visible:outline-gray-800"
+                    : isNight
+                    ? "bg-white/20 text-white hover:bg-white/30 focus-visible:outline-white"
+                    : "bg-white/60 text-gray-700 hover:bg-white/90 focus-visible:outline-gray-800"
                 }`}
               >
                 {label}
@@ -88,7 +102,7 @@ export default function Wardrobe() {
                 type="button"
                 onClick={() => doLaundry.mutate()}
                 disabled={doLaundry.isPending}
-                className="ml-auto px-4 py-1.5 rounded-full text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition disabled:opacity-50"
+                className="w-full sm:w-auto sm:ml-auto px-4 py-1.5 rounded-full text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-800"
               >
                 {doLaundry.isPending ? "Doing laundry…" : `Do Laundry (${laundryCount})`}
               </button>
@@ -96,24 +110,32 @@ export default function Wardrobe() {
           </div>
         )}
 
-        {isLoading && <p className="text-gray-600">Loading your wardrobe…</p>}
+        <div aria-live="polite">
+          {isLoading && (
+            <p className={isNight ? "text-white/80" : "text-gray-600"}>Loading your wardrobe…</p>
+          )}
 
-        {isError && (
-          <p className="text-red-500">Couldn't load your wardrobe. Try refreshing.</p>
-        )}
+          {isError && (
+            <p role="alert" className={isNight ? "text-red-300" : "text-red-500"}>
+              Couldn't load your wardrobe. Try refreshing.
+            </p>
+          )}
 
-        {garments?.length === 0 && (
-          <p className="text-gray-600">
-            Nothing here yet — head to Upload to add your first garment.
-          </p>
-        )}
+          {garments?.length === 0 && (
+            <p className={isNight ? "text-white/80" : "text-gray-600"}>
+              Nothing here yet — head to Upload to add your first garment.
+            </p>
+          )}
 
-        {visible?.length === 0 && garments && garments.length > 0 && (
-          <p className="text-gray-600">Nothing in "{filter}" right now.</p>
-        )}
+          {visible?.length === 0 && garments && garments.length > 0 && (
+            <p className={isNight ? "text-white/80" : "text-gray-600"}>
+              Nothing in "{filter}" right now.
+            </p>
+          )}
+        </div>
 
         {visible && visible.length > 0 && (
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-5">
             {visible.map((garment) => (
               <GarmentCard
                 key={garment.id}

@@ -12,7 +12,7 @@ import { useGeolocation } from "../hooks/useGeolocation";
 // until try-on (Sprint 4) gives us something to actually show.
 function OutfitCard({ itemCount, score }: { itemCount: number; score: number | null }) {
   return (
-    <div className="rounded-2xl overflow-hidden shadow-lg bg-black text-white p-8 flex flex-col items-center justify-center h-[420px] gap-2">
+    <div className="rounded-2xl overflow-hidden shadow-lg bg-black text-white p-8 flex flex-col items-center justify-center min-h-[280px] sm:h-[420px] gap-2">
       <h2 className="text-3xl font-semibold">Today's Outfit</h2>
       <p className="text-white/70">
         {itemCount} item{itemCount === 1 ? "" : "s"}
@@ -53,7 +53,7 @@ export default function Swipe() {
 
   return (
     <>
-      <div className="p-5">
+      <div className="p-5 pb-24" aria-live="polite">
         {(locating || isLoading) && <p className="text-center text-gray-600">Loading…</p>}
 
         {!locating && !isLoading && !outfit && (
@@ -68,17 +68,21 @@ export default function Swipe() {
 
             <div className="flex justify-center gap-5 mt-6">
               <button
+                type="button"
                 onClick={() => skip.mutate(outfit.id)}
                 disabled={busy}
-                className="bg-red-500 px-6 py-2 rounded disabled:opacity-50"
+                aria-label="Skip this outfit and get a new suggestion"
+                className="bg-red-500 hover:bg-red-600 px-6 py-2 rounded text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
               >
                 Skip
               </button>
 
               <button
+                type="button"
                 onClick={() => like.mutate(outfit.id)}
                 disabled={busy || like.isSuccess}
-                className="bg-green-500 px-6 py-2 rounded disabled:opacity-50"
+                aria-label="Like this outfit"
+                className="bg-green-500 hover:bg-green-600 px-6 py-2 rounded text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
               >
                 {like.isSuccess ? "Liked!" : "Like"}
               </button>

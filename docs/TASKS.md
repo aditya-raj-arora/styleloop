@@ -176,16 +176,46 @@ nothing reads that history back into scoring yet. That's this sprint's core.
       `laundry` automatically. Revisit an automatic-after-N-wears trigger
       once real usage shows a sensible N.
 
-### Polish pass
+### Polish pass ✅
 
-- [ ] Empty/loading/error states across Dashboard/Swipe/Wardrobe/Upload —
-      audit for gaps beyond what Sprint 1/2 already added (Wardrobe now has
-      a per-filter empty state as of the laundry UX work above).
-- [ ] Mobile layout pass — nothing's been tested at small viewports yet.
-- [ ] Basic accessibility: focus states, alt text, contrast, keyboard nav on
-      the swipe buttons.
+- [x] Empty/loading/error states audited across Dashboard/Swipe/Wardrobe/
+      Upload — all four already had reasonable coverage from Sprint 1/2/3;
+      added `aria-live`/`role="alert"` so status changes and errors are
+      actually announced, not just visible.
+- [x] **Fixed a real navigation bug found during this pass**: `/swipe` had a
+      route (`App.tsx`) but no `Navbar` link — unreachable except by typing
+      the URL directly. Navbar now links to all four routes.
+- [x] **Fixed a real contrast bug found during this pass**: `WardrobeBackground`
+      goes dark at night (matching `AnimatedBackground`'s day/night theming)
+      but `Wardrobe.tsx`'s text was hardcoded for its pale daytime gradient
+      only — nearly unreadable after dark. New `useIsNight` hook (shared,
+      same cutoff `AnimatedBackground`/`WardrobeBackground` already used) lets
+      the page's text/chip colors follow its background's mode.
+- [x] **Fixed a real mobile bug found during this pass**: no `color-scheme`
+      meta anywhere, so a mobile browser that auto-inverts unstyled
+      light-only pages for a device dark preference (e.g. Android Chrome's
+      "Auto Dark Theme for Web Contents") rendered default-colored text
+      unreadable against a forced-dark background — reproduced in a mobile
+      viewport, confirmed the fix (`<meta name="color-scheme" content="light">`
+      + an explicit `background: white` on `html, body`) resolves it.
+- [x] Mobile layout pass: responsive text sizing (Dashboard/Wardrobe/Upload
+      headings), Wardrobe's garment grid now scales 2→3→4 columns instead of
+      always 2, Swipe's `pb-24` fix (content was tucked behind the fixed
+      Navbar on short viewports — missed in the Sprint 2 PR), smaller
+      dropzone padding on Upload. Verified visually in a 375×812 mobile
+      viewport (Login, Dashboard, Wardrobe, Swipe, Upload).
+- [x] Basic accessibility: `aria-label`s on every icon-only Navbar link/button
+      (previously unlabeled), `aria-pressed` on Wardrobe's filter toggles,
+      `aria-current="page"` for the active nav route, visible
+      `focus-visible` outlines on every custom button/link (previously relied
+      on browser default, inconsistent across the dark nav bar and colored
+      buttons), Swipe's Skip/Like buttons gained explicit `text-white` (they
+      had none — default text color on a red/green background was a genuine
+      contrast failure, not just unstyled-focus).
 
-- **Milestone:** the engine visibly learns taste and rotation feels fair.
+- **Milestone:** the engine visibly learns taste and rotation feels fair. ✅
+
+Sprint 3 is now fully done.
 
 ## Sprint 4 — Virtual try-on
 

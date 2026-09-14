@@ -45,8 +45,8 @@ export default function Upload() {
 
   return (
     <UploadBackground>
-      <div className="p-6 pb-24">
-        <h1 className="text-4xl font-bold text-gray-800">Upload Garment</h1>
+      <div className="p-4 sm:p-6 pb-24">
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-800">Upload Garment</h1>
 
         <p className="text-gray-600 mt-2 mb-8">Add a new clothing item to your wardrobe.</p>
 
@@ -56,6 +56,7 @@ export default function Upload() {
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
           onChange={handleInputChange}
+          aria-label="Choose a garment photo"
         />
 
         <button
@@ -64,7 +65,7 @@ export default function Upload() {
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
           disabled={mutation.isPending}
-          className="w-full bg-white/50 backdrop-blur-xl border-2 border-dashed border-gray-300 rounded-3xl p-16 text-center shadow-xl hover:border-blue-400 transition-all duration-300 disabled:opacity-60"
+          className="w-full bg-white/50 backdrop-blur-xl border-2 border-dashed border-gray-300 rounded-3xl p-8 sm:p-16 text-center shadow-xl hover:border-blue-400 transition-all duration-300 disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
         >
           <UploadCloud size={60} className="mx-auto text-blue-500" />
 
@@ -76,7 +77,7 @@ export default function Upload() {
         </button>
 
         {mutation.isError && (
-          <p className="text-red-500 mt-4">
+          <p role="alert" className="text-red-500 mt-4">
             {mutation.error instanceof ApiError ? mutation.error.message : "Upload failed."}
           </p>
         )}
@@ -105,7 +106,7 @@ export default function Upload() {
           <button
             type="button"
             onClick={() => navigate("/wardrobe")}
-            className="mt-4 text-blue-600 font-medium underline"
+            className="mt-4 text-blue-600 font-medium underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
           >
             View in wardrobe →
           </button>

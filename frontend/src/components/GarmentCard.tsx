@@ -54,9 +54,10 @@ export default function GarmentCard({ garment, onSendToLaundry, sendingToLaundry
               type="button"
               onClick={() => onSendToLaundry(garment.id)}
               disabled={sendingToLaundry}
-              className="shrink-0 text-xs font-medium px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition disabled:opacity-50"
+              aria-label={`Send ${garment.category ?? "this garment"} to laundry`}
+              className="shrink-0 text-xs font-medium px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             >
-              To laundry
+              {sendingToLaundry ? "…" : "To laundry"}
             </button>
           )}
         </div>

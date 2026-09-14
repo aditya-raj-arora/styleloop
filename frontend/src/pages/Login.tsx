@@ -36,7 +36,7 @@ export default function Login() {
   }
 
   return (
-    <div className="h-screen flex flex-col justify-center items-center gap-8 px-6">
+    <div className="min-h-screen flex flex-col justify-center items-center gap-8 px-6 py-10">
       <h1 className="text-4xl font-bold">VogueVault</h1>
 
       <form
@@ -77,7 +77,7 @@ export default function Login() {
         <button
           type="submit"
           disabled={mutation.isPending}
-          className="mt-4 px-6 py-3 bg-amber-400 rounded-xl font-semibold disabled:opacity-60"
+          className="mt-4 px-6 py-3 bg-amber-400 rounded-xl font-semibold disabled:opacity-60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600"
         >
           {mutation.isPending ? "Please wait…" : mode === "login" ? "Login" : "Sign up"}
         </button>
@@ -94,7 +94,7 @@ export default function Login() {
         <button
           type="button"
           onClick={() => setMode(mode === "login" ? "signup" : "login")}
-          className="text-amber-500 font-semibold"
+          className="text-amber-500 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 rounded"
         >
           {mode === "login" ? "Sign up" : "Log in"}
         </button>
