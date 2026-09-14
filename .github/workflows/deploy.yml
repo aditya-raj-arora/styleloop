@@ -24,13 +24,15 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     env:
-      # Adjust these if the EC2 box's actual layout differs - this reflects
-      # the manual runbook used for every deploy before this workflow
-      # existed, but wasn't independently verified against the live
-      # filesystem when writing this automation. First real run will show
-      # quickly if a path is wrong.
-      DEPLOY_PATH: ~/styleloop
-      VENV_PATH: ~/styleloop/backend/.venv
+      # Confirmed against /etc/systemd/system/styleloop-api.service's
+      # WorkingDirectory/ExecStart on the actual box (not guessed). Must be
+      # absolute, not ~-prefixed: `cd "$DEPLOY_PATH"` does NOT tilde-expand
+      # — bash only expands a leading ~ in a literal word, not after it's
+      # come from a quoted variable — so `~/styleloop` here would silently
+      # try to cd into a directory literally named "~" and fail. Learned
+      # that the hard way on this workflow's first real run.
+      DEPLOY_PATH: /home/ubuntu/styleloop
+      VENV_PATH: /home/ubuntu/styleloop/backend/.venv
       HEALTH_CHECK_URL: https://15-252-168-183.sslip.io/health
     steps:
       - name: SSH deploy

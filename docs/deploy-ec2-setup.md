@@ -59,13 +59,13 @@ set:
 Remove-Item .\styleloop-deploy-key, .\styleloop-deploy-key.pub
 ```
 
-## 3. Verify the paths in `deploy.yml`
+## 3. Paths (already verified, nothing to do)
 
-`DEPLOY_PATH` and `VENV_PATH` in the workflow reflect the manual runbook
-used for every deploy up to this point, but weren't checked against the
-box's actual filesystem when this automation was written. If the first run
-fails on `cd`/`source`, adjust those two `env:` values to match reality and
-push again.
+`DEPLOY_PATH`/`VENV_PATH` in the workflow are confirmed against
+`/etc/systemd/system/styleloop-api.service`'s `WorkingDirectory`/
+`ExecStart` on the real box (`/home/ubuntu/styleloop` /
+`/home/ubuntu/styleloop/backend/.venv`) — not a guess. If you ever move the
+repo or venv on the box, update these two `env:` values to match.
 
 ## 4. First run
 
