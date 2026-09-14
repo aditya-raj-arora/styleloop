@@ -219,11 +219,79 @@ Sprint 3 is now fully done.
 
 ## Sprint 4 — Virtual try-on
 
-- Base-photo upload (versioned) to the private bucket.
-- `tryon.render_tryon` via **FASHN through fal.ai** in the worker; **cache by
-  `(photo_version, garment_id)`**; **per-user daily cap**; graceful fallback to the
-  flat outfit on cap/error.
-- Try-on view in the Dashboard, on-demand only.
+**Correction to the Sprint 1 stub:** `services/tryon.render_tryon` and
+`workers/tasks.generate_tryon` currently take a single `garment_id` — but
+try-on renders an *outfit* (top+bottom, or a dress, plus whatever else the
+rotation engine picked), not one garment in isolation. Both need to take
+`outfit_id` (→ `Outfit.garment_ids`) instead. Caught while planning this
+sprint, not yet fixed in code.
+
+### Base photo
+
+- [ ] `User.base_photo_version: int` (new column, default 0) — `base_photo_url`
+      alone can't tell "the user re-uploaded the same slot" from "still the
+      old photo," and the try-on cache key needs that distinction.
+- [ ] `POST /users/me/photo` (multipart, same size/type validation as
+      `POST /garments`): upload to the bucket, set `base_photo_url` to the new
+      key, bump `base_photo_version`. Bumping the version is what
+      invalidates old cached renders — they're keyed by version, not deleted.
+- [ ] Frontend: a base-photo upload control. Leaning toward putting it
+      directly on the Dashboard (prompt when `base_photo_url` is null,
+      "Update photo" once set) rather than a whole new `/profile` route —
+      it's the only thing that would live there. Revisit if that gets
+      cramped once try-on's own UI is in place.
+
+### Try-on generation
+
+- [ ] `tryon_renders` table: `id`, `user_id`, `outfit_id` (FK), `photo_version`,
+      `rendered_url` (storage key), `created_at`. The cache key is
+      `(user_id, outfit_id, photo_version)` — look up a matching row before
+      generating anything new.
+- [ ] `services/tryon.render_tryon(user_id, outfit_id, photo_version)`: calls
+      FASHN via fal.ai. **Open question to resolve during implementation**:
+      FASHN's API renders one garment onto a photo at a time — an outfit with
+      outerwear/shoes may need multiple layered calls, or a v1 that only
+      renders the "anchor" garment (the top, or the dress) and accepts that
+      as a known limitation. Decide once actually looking at FASHN's API
+      docs, not guessed here.
+- [ ] `workers/tasks.generate_tryon(user_id, outfit_id)`: idempotent like
+      `process_garment` — look up the outfit + user's current
+      `base_photo_url`/`base_photo_version`, render, upload the result,
+      insert the `tryon_renders` row. Never crashes the worker on a FASHN
+      error — logs and leaves the row absent so the API's fallback path
+      (below) kicks in.
+- [ ] `TRYON_DAILY_CAP` setting (config.py) — a plain per-user count of
+      `tryon_renders` rows created today; reject new generation over the cap
+      (cached hits don't count against it — they cost nothing to re-serve).
+
+### API
+
+- [ ] `POST /outfits/{id}/tryon`: cache hit → return the cached render
+      immediately. Cache miss → over the daily cap → 429 with a clear detail
+      message. Otherwise enqueue `generate_tryon` and return 202 (same
+      immediate-202-then-poll shape as `POST /garments`).
+- [ ] `GET /outfits/{id}/tryon`: poll endpoint — null/pending until the
+      worker's row lands, matching the `processed_url` polling pattern
+      Wardrobe already uses.
+
+### Frontend
+
+- [ ] Dashboard: a "Try it on" button on the daily outfit card, on-demand
+      only (never auto-triggered — it costs real money per render). Polls
+      like Wardrobe's garment grid does. On cap/error, falls back to the
+      existing flat outfit view rather than showing a broken state — that
+      view already exists and needs no changes for this.
+
+### Testing
+
+- `services/tryon` and the worker task: mock the FASHN/fal.ai call
+  (monkeypatch, same pattern as `test_tagging.py`/`test_bg_removal.py`) —
+  cache-hit short-circuits generation, daily cap is enforced, a
+  provider error doesn't crash the task.
+- `/outfits/{id}/tryon` endpoint: cache hit returns immediately, cap
+  rejection is a clean 4xx, ownership checks (404 for another user's
+  outfit) match the existing `/outfits` tests.
+
 - **Milestone:** outfits rendered on the user's photo, cost-capped and cached.
 
 ## Sprint 5 — Beta hardening & launch
