@@ -50,6 +50,14 @@ jobs:
       STORAGE_REGION: us-east-1
       JWT_SECRET: e2e-test-secret-not-for-production
       FRONTEND_ORIGIN: http://localhost:5173
+      # app/rate_limiting.py only disables the limiter under pytest - this
+      # backend runs as a real uvicorn process, so it's actually enforced.
+      # 13 Playwright tests each logging in/signing up, all from the same
+      # "IP" (everything's on localhost), comfortably exceeds the real
+      # production default (10/minute) within one run - found this the hard
+      # way on this workflow's first pass-the-MinIO-fix run. Production
+      # keeps its real default; this only raises the ceiling for E2E.
+      AUTH_RATE_LIMIT: 1000/minute
     steps:
       - uses: actions/checkout@v4
 

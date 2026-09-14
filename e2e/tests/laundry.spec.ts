@@ -8,6 +8,10 @@ test("sending a garment to laundry and bulk-resetting it back to clean", async (
   await expect(page).toHaveURL(/\/wardrobe/);
 
   const toLaundryButtons = page.getByRole("button", { name: /^Send .* to laundry$/ });
+  // Wait for the (async) garment fetch to actually render before counting -
+  // .count() is a snapshot, not an auto-retrying assertion, so calling it
+  // immediately after navigation races the GET /garments request.
+  await expect(toLaundryButtons.first()).toBeVisible();
   const before = await toLaundryButtons.count();
   expect(before).toBeGreaterThan(0);
 
