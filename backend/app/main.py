@@ -1,14 +1,18 @@
 """FastAPI application entrypoint.
 
 Wires CORS for the local frontend, mounts the API routers, and exposes a health
-check. Business logic lives in the routers/services and is stubbed for Sprint 1.
+check. Business logic lives in the routers/services.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.observability import configure_logging, configure_sentry
 from app.routers import auth, garments, outfits
+
+configure_logging()
+configure_sentry(service_name="api")
 
 app = FastAPI(title="VogueVault API", version="0.1.0")
 

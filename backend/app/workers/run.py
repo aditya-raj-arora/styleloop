@@ -14,12 +14,22 @@ from redis import Redis
 from rq import Worker
 
 from app.config import settings
+from app.observability import configure_logging, configure_sentry
 from app.queue import QUEUE_NAME
 
 _VALID_SCHEMES = {"redis", "rediss", "unix"}
 
 
 def main() -> None:
+    configure_logging()
+    # RqIntegration reports a failed job (e.g. a FASHN outage inside
+    # generate_tryon that exhausts retries) to Sentry automatically, same as
+    # an unhandled request exception does for the API process — imported
+    # lazily since it's only needed when Sentry is actually configured.
+    from sentry_sdk.integrations.rq import RqIntegration
+
+    configure_sentry(service_name="worker", integrations=[RqIntegration()])
+
     url = settings.REDIS_URL
     scheme = urlparse(url).scheme
     if scheme not in _VALID_SCHEMES:
