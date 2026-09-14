@@ -293,10 +293,84 @@ shirt+pants underneath.
 
 ## Sprint 5 — Beta hardening & launch
 
-- Structured logging/observability (never log photos), error tracking (e.g. Sentry).
-- Rate limiting + basic abuse protection; secrets rotation checklist.
-- E2E tests (Playwright) for the core flows; expand CI.
-- Production deploy + custom domain; onboarding flow; performance pass.
+Grounded in the actual stack, not a generic checklist: backend is
+self-managed on a single EC2 box (Ubuntu, Caddy for TLS via an `sslip.io`
+wildcard — no real domain yet), frontend is Vercel (auto-deploys on push to
+`main`), DB is Neon Postgres, object storage is S3, CI is GitHub
+Actions (`ruff` + `pytest` + a Postgres service container, `npm run build`
+— no E2E, no deploy step). "Harden" means closing the gaps that are actually
+open, not standing up a first deploy — the app has been live since Sprint 1.
+
+### Deploy automation ✅ candidate for first
+
+- [ ] **The EC2 backend has no CD** — every backend-touching PR this project
+      has shipped ended with a manual `ssh` + `git pull` + `alembic upgrade
+      head` + `systemctl restart`. Automate it: a GitHub Actions job
+      (triggered on push to `main`, after the existing CI passes) that SSHs
+      in via a deploy key and runs those same steps. Removes the recurring
+      manual step, and makes "pushed to main" actually mean "live" the way
+      Vercel's frontend deploy already does.
+- [ ] Fix the standing branch-protection bypass: `main` requires PRs, but
+      every merge-to-main in this project has gone through a direct
+      `git push` (fast-forward from `develop`) that GitHub reports as
+      "Bypassed rule violations." Either stop pushing to `main` directly
+      (open a PR from `develop` instead) or accept the bypass deliberately
+      — but a rule silently bypassed on every single use isn't really a
+      rule. Decide and document which.
+
+### Observability
+
+- [ ] Error tracking (Sentry or similar) — wired into both the FastAPI app
+      (`main.py`) and the RQ worker (`workers/run.py`); currently a failure
+      in either is invisible unless someone happens to be tailing
+      `journalctl` on the EC2 box.
+- [ ] Structured logging: the worker already logs task failures
+      (`generate_tryon`, `process_garment`) via the stdlib `logging` module
+      with no configured level/format — set one explicitly (level from an
+      env var, not hardcoded) rather than relying on defaults. Re-confirm
+      the existing "never log photo bytes/URLs" rule (services/storage.py's
+      docstrings already state it) holds through whatever formatter/handler
+      gets added.
+
+### Rate limiting + secrets
+
+- [ ] `/auth/signup` and `/auth/login` have no rate limiting — a real gap
+      before real users (credential stuffing / signup spam). Add per-IP
+      limiting (e.g. `slowapi`) to both.
+- [ ] Secrets rotation checklist: `JWT_SECRET`, `STORAGE_*` keys,
+      `DATABASE_URL`, `GEMINI_API_KEY`, `OPENWEATHER_API_KEY`,
+      `FASHN_API_KEY` all live in one `.env` on the EC2 box with no
+      documented rotation process. Write the checklist (what to rotate, in
+      what order, how to verify nothing broke) — don't need to execute a
+      rotation this sprint, just have the runbook ready before it's urgent.
+
+### E2E tests + CI
+
+- [ ] Playwright suite for the core flows: signup → login → upload →
+      wardrobe; generate → regenerate → wear; swipe like/dislike; laundry
+      bulk-reset; base-photo upload → try-on (mock FASHN in the test
+      environment — a real call costs money and is slow).
+- [ ] New CI job running that suite against the full stack (Postgres +
+      Redis + backend + frontend, likely via `docker compose` in CI) —
+      currently backend and frontend are tested in isolation from each
+      other; nothing exercises them together.
+
+### Production polish
+
+- [ ] Real custom domain (replacing the `sslip.io` wildcard for the backend
+      and the `*.vercel.app` default for the frontend) — needed for a
+      credible beta, not just cosmetic.
+- [ ] Onboarding: a fresh signup lands on a Dashboard that 422s
+      ("Not enough tagged, clean garments") until the user has uploaded and
+      tagged a few things. A first-run checklist (upload N garments → set a
+      base photo → see your first outfit) would close that gap instead of
+      handing a new user an error.
+- [ ] Performance pass — deliberately last, and deliberately vague here:
+      revisit once real usage data exists (query patterns, bundle size,
+      candidate-generation cost at real wardrobe sizes) rather than
+      optimizing against guesses. Current bundle is ~76KB gzipped; not a
+      concern yet.
+
 - **Milestone:** shipped to first real users.
 
 ---
