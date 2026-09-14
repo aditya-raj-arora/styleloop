@@ -55,9 +55,9 @@ export default function Dashboard() {
   return (
     <AnimatedBackground>
 
-      <div className="p-8 pb-24">
+      <div className="p-5 sm:p-8 pb-24">
 
-        <h1 className="text-5xl font-bold text-white">
+        <h1 className="text-3xl sm:text-5xl font-bold text-white">
           {greeting}
         </h1>
 
@@ -65,7 +65,10 @@ export default function Dashboard() {
           Welcome back to VogueVault
         </p>
 
-        <div className="mt-12 min-h-[400px] rounded-3xl border-2 border-dashed border-white/40 flex flex-col justify-center items-center gap-4 p-6 text-center">
+        <div
+          className="mt-8 sm:mt-12 min-h-[320px] sm:min-h-[400px] rounded-3xl border-2 border-dashed border-white/40 flex flex-col justify-center items-center gap-4 p-6 text-center"
+          aria-live="polite"
+        >
 
           {(locating || isLoading) && (
             <p className="text-white/70">Putting today's outfit together…</p>
@@ -82,7 +85,9 @@ export default function Dashboard() {
           )}
 
           {!locating && isError && !noWardrobeYet && (
-            <p className="text-white/70">Couldn't load today's outfit. Try refreshing.</p>
+            <p role="alert" className="text-white/70">
+              Couldn't load today's outfit. Try refreshing.
+            </p>
           )}
 
           {!locating && outfit && (
@@ -93,18 +98,20 @@ export default function Dashboard() {
                 {outfit.score !== null && ` · score ${outfit.score.toFixed(2)}`}
               </p>
 
-              <div className="flex gap-3 mt-2">
+              <div className="flex flex-wrap justify-center gap-3 mt-2">
                 <button
+                  type="button"
                   onClick={() => regenerate.mutate()}
                   disabled={regenerate.isPending}
-                  className="bg-white/20 hover:bg-white/30 text-white px-5 py-2 rounded-full transition"
+                  className="bg-white/20 hover:bg-white/30 text-white px-5 py-2 rounded-full transition disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                 >
                   {regenerate.isPending ? "Regenerating…" : "Regenerate"}
                 </button>
                 <button
+                  type="button"
                   onClick={() => wear.mutate(outfit.id)}
                   disabled={wear.isPending}
-                  className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-full transition"
+                  className="bg-green-500 hover:bg-green-600 text-white px-5 py-2 rounded-full transition disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
                 >
                   {wear.isPending ? "Marking worn…" : "Wore this"}
                 </button>

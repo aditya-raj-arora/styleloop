@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- The app is light-theme only (no dark-mode styling exists yet) — this
+       opts out of browsers that auto-invert unstyled pages for a device-level
+       dark preference (e.g. Android Chrome's "Auto Dark Theme for Web
+       Contents"), which otherwise renders default-colored text unreadable
+       against a forced-dark background. -->
+  <meta name="color-scheme" content="light" />
   <title>VogueVault</title>
 </head>
 
