@@ -63,11 +63,12 @@ with those optional slots, scored via `score_outfit`, and sorted. The top
 `limit` are returned with **no shared garment across them**, so "3 candidates"
 really are 3 distinct outfits rather than the same one with a shoe swapped.
 
-`exclude_combo` (an exact garment-id set, e.g. today's current outfit) lets
-"regenerate" ask for something else: it's skipped when ranking, but only
-removes an *exact* match — a small wardrobe (one pair of shoes, one bottom)
-may not have a fully disjoint alternative, and this still rotates whatever
-part of the outfit *can* change instead of erroring out.
+`exclude_combos` (a set of exact garment-id sets — e.g. every outfit
+generated in the last week) lets "regenerate" ask for something else: each is
+skipped when ranking, but only an *exact* match — a small wardrobe (one pair
+of shoes, one bottom) may not have a fully disjoint alternative, and this
+still rotates whatever part of the outfit *can* change instead of erroring
+out.
 
 This all stays a pure function — `generate_outfits(user_id, day, weather,
 garments, ...)` takes an already-fetched `list[ScoringGarment]` and returns
@@ -77,19 +78,34 @@ owns the I/O:
 - `GET /outfits/daily` returns the existing row for today if one exists
   (generate-once-per-day, idempotent on refresh), else generates and
   persists the top-1 candidate.
-- `POST /outfits/generate` always generates again, passing today's existing
-  outfit (if any) as `exclude_combo` — the "regenerate" button.
-- `POST /outfits/{id}/feedback` and `POST /outfits/{id}/wear` are unchanged
-  from the Sprint 1 stub shape (record a `FeedbackEvent`; bump
-  `wear_count`/`last_worn_at`/`state` on each garment in the outfit).
+- `POST /outfits/generate` always generates again, excluding every outfit
+  generated for this user in the last `_LOOKBACK_DAYS` (7) — not just
+  today's — so regenerating twice in a small wardrobe doesn't just bounce
+  between the same two combinations. Router-owned lookback, not
+  rotation.py's concern.
+- `POST /outfits/{id}/feedback` records a `FeedbackEvent`.
+  `POST /outfits/{id}/wear` bumps `wear_count`/`last_worn_at`/`state` on each
+  garment in the outfit.
 
 Untagged garments (`category is None`) are excluded from the candidate pool —
 the engine can't place something it doesn't know the shape of yet.
 
-## Still open (Sprint 3+)
+## Sprint 3: taste weighting
 
-- `taste_weights` is wired as a parameter throughout but nothing populates it
-  yet — Sprint 3 aggregates real weights from `FeedbackEvent` history.
+`services/taste.py::compute_taste_weights(db, user_id)` finally populates the
+`taste_weights` parameter `score_outfit` has accepted since Sprint 1. Each
+`FeedbackEvent` (like/dislike/skip) applies to every category present in its
+outfit's `garment_ids` (an event targets the whole outfit, not one garment,
+so that's as precise as it can be): `like` is `+1`, `dislike` is `-1`, `skip`
+is ignored. Contributions decay exponentially with a 14-day half-life, so a
+bad week doesn't permanently sink a category — recent feedback dominates, old
+feedback fades rather than accumulating forever. Called once per outfit
+generation in `routers/outfits.py::_generate_and_persist`.
+
+## Still open (Sprint 4+)
+
+- Taste weighting only distinguishes by `category` — no signal on
+  color/pattern/fabric/formality preference yet.
 - Lat/lon come from the browser's geolocation when granted, else fall back to
   a fixed default city (`settings.DEFAULT_LAT`/`DEFAULT_LON`) — no per-user
   saved location yet.
@@ -99,7 +115,16 @@ the engine can't place something it doesn't know the shape of yet.
 
 ## Validated by
 
-`backend/app/tests/test_rotation.py` — weather mismatch penalties in both
-directions, recency penalty decay (and its 7-day cutoff), fairness ordering,
-taste weight sign, same-day determinism, and cross-day/cross-user jitter
-variation bounded to the documented magnitude.
+- `backend/app/tests/test_rotation.py` — weather mismatch penalties in both
+  directions, recency penalty decay (and its 7-day cutoff), fairness
+  ordering, taste weight sign, same-day determinism, cross-day/cross-user
+  jitter variation bounded to the documented magnitude, candidate-shape
+  validity (top+bottom/dress required; outerwear/shoes conditioning), no
+  shared garments across ranked candidates, and `exclude_combos` semantics
+  (exact-match-only, falls back when nothing else is available).
+- `backend/app/tests/test_taste.py` — no feedback → empty weights, like/dislike
+  sign, skip ignored, recent feedback outweighing old (decay), untagged
+  garments contributing nothing.
+- `backend/app/tests/test_outfits.py` — the full `/outfits` endpoint contract:
+  generate-and-persist, idempotency, 422 on an untaggable/empty wardrobe,
+  regenerate preferring a different combo, feedback/wear ownership checks.

@@ -168,6 +168,13 @@ export function setGarmentState(id: number, state: GarmentState): Promise<Garmen
   });
 }
 
+// Bulk "do laundry": every 'laundry'-state garment goes back to 'clean' in
+// one call. Returns the garments that were reset (empty array if there
+// weren't any).
+export function resetLaundry(): Promise<Garment[]> {
+  return apiFetch<Garment[]>("/garments/laundry/reset", { method: "POST" });
+}
+
 // --- Outfits (rotation engine, Sprint 2) ---
 //
 // `lat`/`lon` come from the browser's geolocation (see useGeolocation); the

@@ -140,45 +140,47 @@ other affected owner. No silent drift.
 `POST /outfits/{id}/feedback` already records a `FeedbackEvent` (Sprint 2) —
 nothing reads that history back into scoring yet. That's this sprint's core.
 
-### Taste weighting
+### Taste weighting ✅
 
-- [ ] `services/taste.py`: `compute_taste_weights(db, user_id) -> dict[str, float]`
-      — aggregate `FeedbackEvent` per garment category. Starting point:
-      `like: +1`, `dislike: -1`, `skip` ignored (revisit once real data shows
-      whether skips carry signal). Recent events should outweigh stale ones —
-      a simple time-decay, not a flat sum — so one bad week doesn't
-      permanently poison a category.
-- [ ] Wire it into `routers/outfits.py::_generate_and_persist` so daily
-      generation uses real learned preference instead of `taste_weights=None`.
-- [ ] Tests: like-heavy category scores higher, dislike-heavy scores lower,
-      decay favors recent feedback over old.
+- [x] `services/taste.py`: `compute_taste_weights(db, user_id) -> dict[str, float]`
+      — aggregates `FeedbackEvent` per garment category. `like: +1`,
+      `dislike: -1`, `skip` ignored. Recent events outweigh stale ones via
+      exponential decay (14-day half-life), not a flat sum, so one bad week
+      doesn't permanently poison a category.
+- [x] Wired into `routers/outfits.py::_generate_and_persist` — daily
+      generation now uses real learned preference instead of
+      `taste_weights=None`.
+- [x] Tests (`test_taste.py`): empty-feedback → empty weights, like/dislike
+      sign, skip ignored, recent feedback outweighing old, untagged garments
+      contributing nothing.
 
-### Rotation feels fair — close the "regenerate" gap
+### Rotation feels fair — close the "regenerate" gap ✅
 
-- [ ] `exclude_combo` currently only avoids *today's exact* outfit. Extend to
-      look back N days (e.g. last 3–7 days of `Outfit` rows for the user) so
-      a small wardrobe doesn't get handed the same top+bottom every morning —
-      still degrade gracefully (return the best available) when there's
-      truly no alternative, same as today's exact-match fallback.
+- [x] `exclude_combo` → `exclude_combos`: regenerate now excludes every exact
+      outfit generated for the user in the last 7 days (`_LOOKBACK_DAYS` in
+      `routers/outfits.py`), not just today's — still degrades gracefully
+      (returns the best available) when there's truly no alternative.
 - [ ] Revisit `fairness`/`recency_penalty` weighting now that real wear data
-      exists instead of the seed script's synthetic spread.
+      exists instead of the seed script's synthetic spread — deferred, needs
+      real usage data to tune against rather than guessing.
 
-### Laundry UX
+### Laundry UX ✅
 
-- [ ] Bulk "Do Laundry" endpoint (e.g. `POST /garments/laundry/reset`) that
-      flips every `laundry`-state garment for the user back to `clean` in one
-      call, instead of one-by-one via the existing per-garment
-      `POST /garments/{id}/state`.
-- [ ] Wardrobe UI: a laundry hamper view/filter + the bulk button.
-- [ ] Decide the worn→laundry transition trigger — automatic after N wears,
-      or user-initiated only? (`wear` currently only bumps `wear_count`;
-      nothing ever moves a garment *into* `laundry`.)
+- [x] Bulk "Do Laundry" endpoint: `POST /garments/laundry/reset` flips every
+      `laundry`-state garment for the user back to `clean` in one call.
+- [x] Wardrobe UI: filter chips (All/Clean/Worn/Laundry) + a "Do Laundry (N)"
+      bulk button that appears whenever there's something to reset;
+      `GarmentCard` gained a state badge and a "To laundry" quick action.
+- [x] Worn→laundry transition: **user-initiated only** — `wear` still just
+      bumps `wear_count`/`last_worn_at`; nothing moves a garment into
+      `laundry` automatically. Revisit an automatic-after-N-wears trigger
+      once real usage shows a sensible N.
 
 ### Polish pass
 
 - [ ] Empty/loading/error states across Dashboard/Swipe/Wardrobe/Upload —
-      audit for gaps beyond what Sprint 1/2 already added (e.g. Wardrobe has
-      no laundry-specific empty state yet).
+      audit for gaps beyond what Sprint 1/2 already added (Wardrobe now has
+      a per-filter empty state as of the laundry UX work above).
 - [ ] Mobile layout pass — nothing's been tested at small viewports yet.
 - [ ] Basic accessibility: focus states, alt text, contrast, keyboard nav on
       the swipe buttons.

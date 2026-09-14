@@ -187,22 +187,23 @@ def generate_candidates(
     user_id: int,
     taste_weights: dict[str, float] | None = None,
     limit: int = 3,
-    exclude_combo: frozenset[int] | None = None,
+    exclude_combos: frozenset[frozenset[int]] = frozenset(),
 ) -> list[tuple[tuple[int, ...], float]]:
     """Rank candidate outfits over `garments` (already filtered to 'clean' by
     the caller) and return up to `limit` as `(garment_ids, score)`, best
     first. Candidates never share a garment with each other, so the list is
     genuinely `limit` distinct suggestions, not `limit` near-duplicates.
 
-    `exclude_combo` is the *exact* garment-id set of an outfit to skip (e.g.
-    today's current suggestion) — used by "regenerate" to avoid repeating the
-    same combination verbatim. It only rules out an exact match, not anything
-    sharing a garment with it, since a small wardrobe may not have a fully
-    disjoint alternative (e.g. only one pair of shoes) but can still rotate
-    the rest.
+    `exclude_combos` is a set of *exact* garment-id sets to skip (e.g. the
+    last several days' outfits) — used by "regenerate" to avoid repeating a
+    combination the user has already seen recently. It only rules out exact
+    matches, not anything merely sharing a garment with them, since a small
+    wardrobe may not have a fully disjoint alternative (e.g. only one pair of
+    shoes) but can still rotate the rest.
 
-    Pure function: no DB, no I/O. The router owns fetching 'clean' garments
-    and persisting the winning combination as an `Outfit` row.
+    Pure function: no DB, no I/O. The router owns fetching 'clean' garments,
+    looking up recent outfits for `exclude_combos`, and persisting the
+    winning combination as a new `Outfit` row.
     """
     garments_key = tuple(garments)
     base = _base_combinations(garments_key)
@@ -239,7 +240,9 @@ def generate_candidates(
     ]
     scored.sort(key=lambda pair: pair[1], reverse=True)
 
-    fresh = [(combo, s) for combo, s in scored if {g.id for g in combo} != exclude_combo]
+    fresh = [
+        (combo, s) for combo, s in scored if frozenset(g.id for g in combo) not in exclude_combos
+    ]
     ranked = fresh or scored  # excluding everything left nothing — fall back to the full ranking
 
     selected: list[tuple[tuple[int, ...], float]] = []
@@ -264,7 +267,7 @@ def generate_outfits(
     *,
     limit: int = 3,
     taste_weights: dict[str, float] | None = None,
-    exclude_combo: frozenset[int] | None = None,
+    exclude_combos: frozenset[frozenset[int]] = frozenset(),
 ) -> list[tuple[tuple[int, ...], float]]:
     """Public entry point used by the `/outfits` router. Thin wrapper around
     `generate_candidates` — see there for the ranking algorithm."""
@@ -275,5 +278,5 @@ def generate_outfits(
         user_id=user_id,
         taste_weights=taste_weights,
         limit=limit,
-        exclude_combo=exclude_combo,
+        exclude_combos=exclude_combos,
     )

@@ -10,7 +10,7 @@ preferring garments not already used in today's outfit. Feedback records swipe
 actions; wear marks each of the outfit's garments worn.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -24,10 +24,17 @@ from app.models.user import User
 from app.schemas.outfit import FeedbackIn, OutfitOut
 from app.services import weather as weather_service
 from app.services.rotation import ScoringGarment, generate_outfits
+from app.services.taste import compute_taste_weights
 
 router = APIRouter(prefix="/outfits", tags=["outfits"])
 
 _VALID_FEEDBACK_ACTIONS = {"like", "dislike", "skip"}
+
+# How far back "regenerate" looks to avoid repeating a recent outfit verbatim
+# (see rotation.generate_candidates' exclude_combos). Small wardrobes may not
+# have that many genuinely distinct options — the exact-match-only exclusion
+# there degrades to "best available" rather than erroring when they don't.
+_LOOKBACK_DAYS = 7
 
 
 def _outfit_out(outfit: Outfit) -> OutfitOut:
@@ -65,13 +72,27 @@ def _latest_outfit_for_today(db: Session, user_id: int, today: date) -> Outfit |
     )
 
 
+def _recent_combos(db: Session, user_id: int, today: date) -> frozenset[frozenset[int]]:
+    """Exact garment-id sets of every outfit generated for this user in the
+    last `_LOOKBACK_DAYS` (today included) — regenerate prefers to avoid all
+    of them, not just today's, so a small wardrobe doesn't get handed the
+    same pairing every morning just because "today" reset the exclusion."""
+    cutoff = today - timedelta(days=_LOOKBACK_DAYS)
+    rows = (
+        db.query(Outfit.garment_ids)
+        .filter(Outfit.user_id == user_id, Outfit.generated_for >= cutoff)
+        .all()
+    )
+    return frozenset(frozenset(ids) for (ids,) in rows)
+
+
 def _generate_and_persist(
     db: Session,
     user: User,
     *,
     lat: float | None,
     lon: float | None,
-    exclude_combo: frozenset[int] | None = None,
+    exclude_combos: frozenset[frozenset[int]] = frozenset(),
 ) -> Outfit:
     today = date.today()
     garments = _clean_scoring_garments(db, user.id)
@@ -85,8 +106,15 @@ def _generate_and_persist(
         lat if lat is not None else settings.DEFAULT_LAT,
         lon if lon is not None else settings.DEFAULT_LON,
     )
+    taste_weights = compute_taste_weights(db, user.id)
     candidates = generate_outfits(
-        user.id, today, conditions, garments, limit=1, exclude_combo=exclude_combo
+        user.id,
+        today,
+        conditions,
+        garments,
+        limit=1,
+        taste_weights=taste_weights,
+        exclude_combos=exclude_combos,
     )
     if not candidates:
         raise HTTPException(
@@ -128,9 +156,11 @@ def generate(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> OutfitOut:
-    existing = _latest_outfit_for_today(db, current_user.id, date.today())
-    exclude_combo = frozenset(existing.garment_ids) if existing else None
-    outfit = _generate_and_persist(db, current_user, lat=lat, lon=lon, exclude_combo=exclude_combo)
+    today = date.today()
+    exclude_combos = _recent_combos(db, current_user.id, today)
+    outfit = _generate_and_persist(
+        db, current_user, lat=lat, lon=lon, exclude_combos=exclude_combos
+    )
     return _outfit_out(outfit)
 
 
