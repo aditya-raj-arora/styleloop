@@ -13,36 +13,51 @@ touching the EC2 box.
 
 ## 1. Create a dedicated deploy key
 
-Don't reuse your personal SSH key. On your own machine:
+Don't reuse your personal SSH key. `ssh-keygen` ships with Windows 10+'s
+built-in OpenSSH client, so this works the same in PowerShell as anywhere
+else:
 
-```bash
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ./styleloop-deploy-key -N ""
+```powershell
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f .\styleloop-deploy-key -N '""'
 ```
+
+(The `-N '""'` — empty passphrase, quoted so PowerShell doesn't eat it — is
+required: the workflow can't be prompted for one.)
 
 Add the **public** half to the EC2 box's `~/.ssh/authorized_keys` for the
 user the workflow will log in as (the same user you've been deploying as
-manually):
+manually). `ssh-copy-id` isn't available on Windows, so append it over SSH
+directly:
 
-```bash
-ssh-copy-id -i ./styleloop-deploy-key.pub ubuntu@<your-ec2-ip-or-domain>
-# or, if ssh-copy-id isn't available: paste the .pub file's contents onto
-# a new line in ~/.ssh/authorized_keys on the box yourself.
+```powershell
+Get-Content .\styleloop-deploy-key.pub | ssh ubuntu@<your-ec2-ip-or-domain> "cat >> ~/.ssh/authorized_keys"
 ```
+
+(POSIX equivalent, if you're doing this from Mac/Linux/WSL instead:
+`ssh-copy-id -i ./styleloop-deploy-key.pub ubuntu@<your-ec2-ip-or-domain>`.)
 
 ## 2. Add the repository secrets
 
 Via the GitHub UI: **Settings → Secrets and variables → Actions → New
-repository secret**, or via `gh`:
+repository secret**, or via `gh`. Note `gh secret set`'s stdin form needs
+`Get-Content | gh secret set NAME` in PowerShell — plain `<` redirection
+isn't supported there (that's a POSIX shell thing):
 
-```bash
+```powershell
 gh secret set EC2_HOST --body "15.252.168.183"        # or your EC2 domain
 gh secret set EC2_USER --body "ubuntu"                 # the deploy user
-gh secret set EC2_SSH_KEY < ./styleloop-deploy-key      # the PRIVATE key
+Get-Content .\styleloop-deploy-key -Raw | gh secret set EC2_SSH_KEY   # the PRIVATE key
 ```
+
+(POSIX equivalent: `gh secret set EC2_SSH_KEY < ./styleloop-deploy-key`.)
 
 Then delete the local key files (`styleloop-deploy-key` /
 `styleloop-deploy-key.pub`) — they're not needed again once the secret is
-set.
+set:
+
+```powershell
+Remove-Item .\styleloop-deploy-key, .\styleloop-deploy-key.pub
+```
 
 ## 3. Verify the paths in `deploy.yml`
 
