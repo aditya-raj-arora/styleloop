@@ -167,3 +167,47 @@ def test_set_state_rejects_invalid_state() -> None:
         f"/garments/{garment['id']}/state", json={"state": "sparkling"}, headers=_auth(token)
     )
     assert response.status_code == 400
+
+
+def test_reset_laundry_moves_only_laundry_garments_to_clean() -> None:
+    token = _signup()
+    laundry_garment = _upload(token).json()
+    clean_garment = _upload(token).json()
+
+    client.post(
+        f"/garments/{laundry_garment['id']}/state",
+        json={"state": "laundry"},
+        headers=_auth(token),
+    )
+
+    response = client.post("/garments/laundry/reset", headers=_auth(token))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [g["id"] for g in body] == [laundry_garment["id"]]
+    assert body[0]["state"] == "clean"
+
+    # The garment that was never in laundry is untouched.
+    untouched = client.get(f"/garments/{clean_garment['id']}", headers=_auth(token)).json()
+    assert untouched["state"] == "clean"
+
+
+def test_reset_laundry_is_scoped_to_the_current_user() -> None:
+    token_a = _signup()
+    token_b = _signup()
+    garment_a = _upload(token_a).json()
+    client.post(
+        f"/garments/{garment_a['id']}/state", json={"state": "laundry"}, headers=_auth(token_a)
+    )
+
+    response = client.post("/garments/laundry/reset", headers=_auth(token_b))
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_reset_laundry_with_nothing_to_reset_returns_empty_list() -> None:
+    token = _signup()
+    response = client.post("/garments/laundry/reset", headers=_auth(token))
+    assert response.status_code == 200
+    assert response.json() == []

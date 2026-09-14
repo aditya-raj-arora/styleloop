@@ -117,6 +117,28 @@ def list_garments(
     return [_garment_out(g) for g in garments]
 
 
+@router.post("/laundry/reset", response_model=list[GarmentOut])
+def reset_laundry(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[GarmentOut]:
+    """Bulk "do laundry": every `laundry`-state garment for this user goes
+    back to `clean` in one call, instead of one-by-one via
+    `POST /{garment_id}/state`. Returns the garments that were reset (empty
+    list if there weren't any — not an error)."""
+    garments = (
+        db.query(Garment)
+        .filter(Garment.user_id == current_user.id, Garment.state == "laundry")
+        .all()
+    )
+    for garment in garments:
+        garment.state = DEFAULT_STATE
+    db.commit()
+    for garment in garments:
+        db.refresh(garment)
+    return [_garment_out(g) for g in garments]
+
+
 @router.get("/{garment_id}", response_model=GarmentOut)
 def get_garment(
     garment_id: int,

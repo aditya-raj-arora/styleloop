@@ -2,11 +2,22 @@ import type { Garment } from "../api/client";
 
 interface Props {
   garment: Garment;
+  // Optional — Upload.tsx's just-created preview card has nothing to do
+  // yet, so state changes stay opt-in rather than every caller wiring a
+  // mutation it doesn't need.
+  onSendToLaundry?: (id: number) => void;
+  sendingToLaundry?: boolean;
 }
+
+const _STATE_LABEL: Record<string, string> = {
+  clean: "Clean",
+  worn: "Worn",
+  laundry: "In laundry",
+};
 
 // processed_url is null until the RQ worker finishes bg-removal + tagging —
 // show the raw upload behind a "Processing…" overlay until it resolves.
-export default function GarmentCard({ garment }: Props) {
+export default function GarmentCard({ garment, onSendToLaundry, sendingToLaundry }: Props) {
   const isProcessing = garment.processed_url === null;
   const image = garment.processed_url ?? garment.image_url;
 
@@ -26,11 +37,28 @@ export default function GarmentCard({ garment }: Props) {
         </div>
       )}
 
+      {!isProcessing && (
+        <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/90 text-xs font-medium text-gray-700">
+          {_STATE_LABEL[garment.state] ?? garment.state}
+        </span>
+      )}
+
       {!isProcessing && (garment.category || garment.colors?.length) && (
-        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
+        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/60 to-transparent flex items-end justify-between gap-2">
           <p className="text-white text-sm capitalize">
             {[garment.category, garment.colors?.[0]].filter(Boolean).join(" · ")}
           </p>
+
+          {onSendToLaundry && garment.state !== "laundry" && (
+            <button
+              type="button"
+              onClick={() => onSendToLaundry(garment.id)}
+              disabled={sendingToLaundry}
+              className="shrink-0 text-xs font-medium px-2 py-1 rounded-full bg-white/20 hover:bg-white/30 text-white transition disabled:opacity-50"
+            >
+              To laundry
+            </button>
+          )}
         </div>
       )}
     </div>

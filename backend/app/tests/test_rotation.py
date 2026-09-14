@@ -199,7 +199,7 @@ def test_candidates_do_not_share_garments() -> None:
         seen.update(ids)
 
 
-def test_exclude_combo_is_preferred_but_not_absolute() -> None:
+def test_exclude_combos_is_preferred_but_not_absolute() -> None:
     # Only one valid combo exists — excluding it can't remove it, so the
     # fallback path (return it anyway) has to kick in.
     wardrobe = [_garment(id=1, category="top"), _garment(id=2, category="bottom")]
@@ -208,13 +208,13 @@ def test_exclude_combo_is_preferred_but_not_absolute() -> None:
         weather=_MILD_WEATHER,
         today=_TODAY,
         user_id=1,
-        exclude_combo=frozenset({1, 2}),
+        exclude_combos=frozenset({frozenset({1, 2})}),
     )
     assert len(candidates) == 1
     assert set(candidates[0][0]) == {1, 2}
 
 
-def test_exclude_combo_picks_a_different_combo_when_one_exists() -> None:
+def test_exclude_combos_picks_a_different_combo_when_one_exists() -> None:
     wardrobe = [
         _garment(id=1, category="top", wear_count=0),
         _garment(id=2, category="top", wear_count=0),
@@ -230,9 +230,25 @@ def test_exclude_combo_picks_a_different_combo_when_one_exists() -> None:
         weather=_MILD_WEATHER,
         today=_TODAY,
         user_id=1,
-        exclude_combo=previous_combo,
+        exclude_combos=frozenset({previous_combo}),
     )
     assert frozenset(candidates[0][0]) != previous_combo
+
+
+def test_exclude_combos_can_rule_out_multiple_recent_outfits() -> None:
+    wardrobe = [
+        _garment(id=1, category="top", wear_count=0),
+        _garment(id=2, category="top", wear_count=0),
+        _garment(id=3, category="top", wear_count=0),
+        _garment(id=4, category="bottom", wear_count=0),
+    ]
+    ranked = generate_candidates(wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1, limit=3)
+    top_two = frozenset(frozenset(ids) for ids, _score in ranked[:2])
+
+    candidates = generate_candidates(
+        wardrobe, weather=_MILD_WEATHER, today=_TODAY, user_id=1, exclude_combos=top_two
+    )
+    assert frozenset(candidates[0][0]) not in top_two
 
 
 def test_generate_outfits_delegates_to_generate_candidates() -> None:
