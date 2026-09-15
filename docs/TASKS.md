@@ -397,11 +397,15 @@ open, not standing up a first deploy — the app has been live since Sprint 1.
 - [ ] Real custom domain (replacing the `sslip.io` wildcard for the backend
       and the `*.vercel.app` default for the frontend) — needed for a
       credible beta, not just cosmetic.
-- [ ] Onboarding: a fresh signup lands on a Dashboard that 422s
-      ("Not enough tagged, clean garments") until the user has uploaded and
-      tagged a few things. A first-run checklist (upload N garments → set a
-      base photo → see your first outfit) would close that gap instead of
-      handing a new user an error.
+- [x] Onboarding: a fresh signup used to land on a Dashboard that just showed
+      the raw 422 state ("No outfit yet") with a line of static copy.
+      Replaced with `OnboardingChecklist` (`frontend/src/components/`): live
+      steps — upload garments → wait for auto-tagging → have a top+bottom or
+      a dress (mirrors `rotation._base_combinations`'s own requirement,
+      computed client-side against `GET /garments`) → optional base photo —
+      each with a check once satisfied and a "Upload garments →" link to
+      `/upload` while it isn't. The garments list is only fetched when the
+      daily-outfit request 422s, not on every Dashboard load.
 - [ ] Performance pass — deliberately last, and deliberately vague here:
       revisit once real usage data exists (query patterns, bundle size,
       candidate-generation cost at real wardrobe sizes) rather than

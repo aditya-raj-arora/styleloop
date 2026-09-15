@@ -6,11 +6,13 @@ import {
   generateOutfit,
   getCurrentUser,
   getDailyOutfit,
+  listGarments,
   uploadBasePhoto,
   wearOutfit,
 } from "../api/client";
 import AnimatedBackground from "../components/AnimatedBackground";
 import Navbar from "../components/Navbar";
+import OnboardingChecklist from "../components/OnboardingChecklist";
 import { useGeolocation } from "../hooks/useGeolocation";
 import { useTryon } from "../hooks/useTryon";
 
@@ -58,6 +60,16 @@ export default function Dashboard() {
     },
   });
 
+  const noWardrobeYet = error instanceof ApiError && error.status === 422;
+
+  // Only needed to drive the first-run checklist below — don't fetch it
+  // once the user already has a daily outfit.
+  const { data: garments, isLoading: garmentsLoading } = useQuery({
+    queryKey: ["garments"],
+    queryFn: listGarments,
+    enabled: noWardrobeYet,
+  });
+
   const tryon = useTryon(outfit?.id);
 
   function handlePhotoChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -76,8 +88,6 @@ export default function Dashboard() {
       : hour >= 17 && hour < 20
       ? "Good Evening 🌇"
       : "Good Night 🌙";
-
-  const noWardrobeYet = error instanceof ApiError && error.status === 422;
 
   return (
     <AnimatedBackground>
@@ -126,13 +136,11 @@ export default function Dashboard() {
           )}
 
           {!locating && noWardrobeYet && (
-            <>
-              <h2 className="text-2xl text-white">No outfit yet</h2>
-              <p className="text-white/60 text-sm max-w-xs">
-                Upload and tag a few clean garments (at least a top + bottom, or a
-                dress) and today's suggestion will show up here.
-              </p>
-            </>
+            <OnboardingChecklist
+              garments={garments}
+              garmentsLoading={garmentsLoading}
+              hasBasePhoto={Boolean(user?.base_photo_url)}
+            />
           )}
 
           {!locating && isError && !noWardrobeYet && (
