@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 import {
   ApiError,
@@ -7,6 +7,8 @@ import {
   getCurrentUser,
   getDailyOutfit,
   listGarments,
+  shareOutfit,
+  unshareOutfit,
   uploadBasePhoto,
   wearOutfit,
 } from "../api/client";
@@ -48,8 +50,34 @@ export default function Dashboard() {
     mutationFn: () => generateOutfit(coords),
     onSuccess: (newOutfit) => {
       queryClient.setQueryData(["outfits", "daily"], newOutfit);
+      // A share link is per-outfit — a regenerate swaps in a different
+      // outfit, so any link shown for the previous one no longer applies.
+      share.reset();
     },
   });
+
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const share = useMutation({
+    mutationFn: (outfitId: number) => shareOutfit(outfitId),
+  });
+
+  const unshare = useMutation({
+    mutationFn: (outfitId: number) => unshareOutfit(outfitId),
+    onSuccess: () => share.reset(),
+  });
+
+  async function copyShareLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      // Clipboard access denied/unavailable (e.g. insecure context) — the
+      // link is still visible and selectable in the box below, so this
+      // isn't a dead end, just a missed shortcut.
+    }
+  }
 
   const wear = useMutation({
     mutationFn: (outfitId: number) => wearOutfit(outfitId),
@@ -184,10 +212,49 @@ export default function Dashboard() {
                     Try it on
                   </button>
                 )}
+
+                {!share.data && (
+                  <button
+                    type="button"
+                    onClick={() => share.mutate(outfit.id)}
+                    disabled={share.isPending}
+                    className="bg-white/20 hover:bg-white/30 text-white px-5 py-2 rounded-full transition disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  >
+                    {share.isPending ? "Getting link…" : "Share"}
+                  </button>
+                )}
               </div>
 
               {wear.isSuccess && (
                 <p className="text-white/70 text-xs mt-1">Logged — enjoy!</p>
+              )}
+
+              {share.data && (
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 max-w-sm">
+                  <input
+                    type="text"
+                    readOnly
+                    value={share.data.share_url}
+                    aria-label="Shareable outfit link"
+                    onFocus={(e) => e.target.select()}
+                    className="min-w-0 flex-1 bg-white/10 text-white/80 text-xs px-3 py-1.5 rounded-full border border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => copyShareLink(share.data!.share_url)}
+                    className="text-amber-300 text-xs font-medium underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-white rounded"
+                  >
+                    {linkCopied ? "Copied!" : "Copy"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => unshare.mutate(outfit.id)}
+                    disabled={unshare.isPending}
+                    className="text-white/60 text-xs underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white rounded"
+                  >
+                    {unshare.isPending ? "Removing…" : "Stop sharing"}
+                  </button>
+                </div>
               )}
 
               {tryon.status === "pending" && (

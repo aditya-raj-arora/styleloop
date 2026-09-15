@@ -27,6 +27,14 @@ class Outfit(Base):
     score: Mapped[float | None] = mapped_column(Float, nullable=True)
     generated_for: Mapped[date] = mapped_column(Date, index=True, nullable=False)
 
+    # Set only once the owner requests a shareable link (POST .../share);
+    # null means "never shared" or "revoked". A random opaque token, not the
+    # outfit id, so a share link can be revoked without the id itself
+    # changing meaning, and doesn't leak how many outfits exist.
+    share_token: Mapped[str | None] = mapped_column(
+        String(43), unique=True, index=True, nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

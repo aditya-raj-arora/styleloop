@@ -456,10 +456,46 @@ Scoped and landed incrementally, not all at once.
       in this sandbox (no docker daemon available for the Postgres/
       Redis/MinIO stack `e2e/README.md` describes; runs for real in CI).
 
+### Shareable outfit links ✅
+
+- [x] `outfits.share_token` (`String(43)`, nullable, unique-indexed —
+      migration `0003_outfit_share`): null means never shared/revoked; set
+      only when the owner requests a link. A random `secrets.token_urlsafe(32)`,
+      not the outfit id, so a link can be revoked without the id changing
+      meaning and doesn't leak how many outfits exist. Kept off `OutfitOut`
+      (the frozen contract) — its own `ShareOut`/`SharedOutfitOut`/
+      `SharedGarmentOut` schemas instead.
+- [x] `POST /outfits/{id}/share` (owner-only, idempotent — repeat calls
+      return the existing token rather than rotating it) and
+      `DELETE /outfits/{id}/share` (revoke; not an error on an
+      already-unshared outfit) in `routers/outfits.py`.
+- [x] `GET /outfits/shared/{token}` — deliberately **no auth check**: the
+      token *is* the credential. Returns `SharedGarmentOut`, a subset of
+      `GarmentOut` with `user_id`/`state`/`wear_count`/`last_worn_at`
+      stripped — a share page describes the outfit, not the owner's laundry
+      habits.
+- [x] Frontend: a "Share" button next to Regenerate/Wore this/Try it on on
+      the Dashboard — shows a copyable link + "Stop sharing" once shared;
+      regenerating an outfit resets the share UI (a link is per-outfit, and
+      swapping the outfit invalidates what the old link pointed at, even
+      though the DB row itself is untouched). New public `/shared/:token`
+      route (`SharedOutfit.tsx`, no `RequireAuth`) renders the garments
+      grid-style with a link back to the login page.
+- [x] `apiFetch`'s response handler now special-cases `204 No Content`
+      (the `DELETE .../share` response) instead of always calling
+      `response.json()`, which would have thrown on the empty body — a
+      small, generally-useful fix, not share-specific.
+- [x] Tests: 8 new backend cases (create/idempotent/404-for-non-owner,
+      revoke/404-for-non-owner/no-op-when-never-shared, public fetch hides
+      owner fields, unknown token 404s) — full suite (134 tests) + ruff
+      clean. Frontend `tsc`+`vite build` clean. E2E (`share.spec.ts`):
+      share → open the link in a fresh unauthenticated browser context →
+      revoke → same link 404s; type-checked, not run for real in this
+      sandbox (same docker constraint as the other Sprint 6 E2E specs).
+
 ### Not started yet
 
 - [ ] Calendar/occasion-aware suggestions ("interview tomorrow").
-- [ ] Shareable outfit links; social/lookbook.
 - [ ] Packing-list generator for trips (weather + duration aware).
 - [ ] Multi-photo garments; auto-detect duplicates.
 - [ ] Cost-per-wear (needs a purchase-price field — see above).

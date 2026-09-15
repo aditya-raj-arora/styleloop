@@ -85,6 +85,9 @@ async function _handleResponse<T>(response: Response): Promise<T> {
     }
     throw new ApiError(response.status, detail);
   }
+  // 204 No Content (e.g. DELETE .../share) has no body to parse — response.json()
+  // would throw on the empty string. Every other 2xx here does return JSON.
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -256,4 +259,47 @@ export function requestTryon(outfitId: number): Promise<TryonResult> {
 
 export function getTryon(outfitId: number): Promise<TryonResult> {
   return apiFetch<TryonResult>(`/outfits/${outfitId}/tryon`);
+}
+
+// --- Shareable outfit links (Sprint 6) ---
+//
+// Mirrors backend/app/schemas/outfit.py::ShareOut/SharedGarmentOut/SharedOutfitOut.
+
+export interface Share {
+  share_token: string;
+  share_url: string;
+}
+
+// Idempotent — calling it again on an already-shared outfit returns the
+// existing link rather than rotating it.
+export function shareOutfit(outfitId: number): Promise<Share> {
+  return apiFetch<Share>(`/outfits/${outfitId}/share`, { method: "POST" });
+}
+
+export function unshareOutfit(outfitId: number): Promise<void> {
+  return apiFetch<void>(`/outfits/${outfitId}/share`, { method: "DELETE" });
+}
+
+// A garment as shown on a public share page — deliberately a subset of
+// Garment (no user_id/state/wear_count/last_worn_at; see SharedGarmentOut).
+export interface SharedGarment {
+  image_url: string;
+  processed_url: string | null;
+  category: string | null;
+  colors: string[] | null;
+  pattern: string | null;
+  season: string | null;
+  formality: string | null;
+}
+
+export interface SharedOutfit {
+  generated_for: string;
+  score: number | null;
+  garments: SharedGarment[];
+}
+
+// No auth header needed (and none is sent if the viewer isn't logged in) —
+// the token itself is the credential.
+export function getSharedOutfit(token: string): Promise<SharedOutfit> {
+  return apiFetch<SharedOutfit>(`/outfits/shared/${token}`);
 }

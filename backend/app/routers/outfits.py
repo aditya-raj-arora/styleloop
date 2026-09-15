@@ -10,9 +10,11 @@ preferring garments not already used in today's outfit. Feedback records swipe
 actions; wear marks each of the outfit's garments worn.
 """
 
+import secrets
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -23,7 +25,13 @@ from app.models.outfit import FeedbackEvent, Outfit
 from app.models.tryon import TryonRender
 from app.models.user import User
 from app.queue import get_queue
-from app.schemas.outfit import FeedbackIn, OutfitOut
+from app.schemas.outfit import (
+    FeedbackIn,
+    OutfitOut,
+    SharedGarmentOut,
+    SharedOutfitOut,
+    ShareOut,
+)
 from app.schemas.tryon import TryonOut
 from app.services import storage
 from app.services import weather as weather_service
@@ -39,6 +47,12 @@ _VALID_FEEDBACK_ACTIONS = {"like", "dislike", "skip"}
 # have that many genuinely distinct options — the exact-match-only exclusion
 # there degrades to "best available" rather than erroring when they don't.
 _LOOKBACK_DAYS = 7
+
+_SHARE_TOKEN_COLLISION_RETRIES = 3
+
+
+def _share_url(token: str) -> str:
+    return f"{settings.FRONTEND_ORIGIN}/shared/{token}"
 
 
 def _outfit_out(outfit: Outfit) -> OutfitOut:
@@ -213,6 +227,92 @@ def wear(
     db.commit()
 
     return {"status": "worn", "garment_ids": [g.id for g in garments]}
+
+
+@router.post("/{outfit_id}/share", response_model=ShareOut)
+def share_outfit(
+    outfit_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ShareOut:
+    """Create (or return the existing) public share link for this outfit.
+    Idempotent — calling it again on an already-shared outfit returns the
+    same token rather than rotating it, so a link the owner already handed
+    out doesn't silently break."""
+    outfit = db.get(Outfit, outfit_id)
+    if outfit is None or outfit.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+
+    if outfit.share_token is None:
+        for _ in range(_SHARE_TOKEN_COLLISION_RETRIES):
+            outfit.share_token = secrets.token_urlsafe(32)
+            try:
+                db.commit()
+                break
+            except IntegrityError:
+                # Astronomically unlikely (32 random bytes), but a token
+                # collision must not 500 — just draw another.
+                db.rollback()
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not generate a unique share link — try again.",
+            )
+        db.refresh(outfit)
+
+    return ShareOut(share_token=outfit.share_token, share_url=_share_url(outfit.share_token))
+
+
+@router.delete("/{outfit_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+def unshare_outfit(
+    outfit_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Revoke a share link — the token stops resolving immediately.
+    Not an error to call on an already-unshared (or never-shared) outfit."""
+    outfit = db.get(Outfit, outfit_id)
+    if outfit is None or outfit.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Outfit not found")
+
+    outfit.share_token = None
+    db.commit()
+
+
+@router.get("/shared/{token}", response_model=SharedOutfitOut)
+def get_shared_outfit(token: str, db: Session = Depends(get_db)) -> SharedOutfitOut:
+    """Public, unauthenticated view of a shared outfit — no ownership check,
+    deliberately: the whole point of the token is that it substitutes for
+    auth. Garments come back stripped of anything that describes the
+    owner's habits (state, wear_count, last_worn_at) — see SharedGarmentOut."""
+    outfit = db.query(Outfit).filter(Outfit.share_token == token).first()
+    if outfit is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link not found")
+
+    # Preserve the outfit's own garment order rather than the query's.
+    garments_by_id = {
+        g.id: g for g in db.query(Garment).filter(Garment.id.in_(outfit.garment_ids)).all()
+    }
+    garments = [garments_by_id[gid] for gid in outfit.garment_ids if gid in garments_by_id]
+
+    return SharedOutfitOut(
+        generated_for=outfit.generated_for,
+        score=outfit.score,
+        garments=[
+            SharedGarmentOut(
+                image_url=storage.presigned_download_url(g.image_url),
+                processed_url=(
+                    storage.presigned_download_url(g.processed_url) if g.processed_url else None
+                ),
+                category=g.category,
+                colors=g.colors,
+                pattern=g.pattern,
+                season=g.season,
+                formality=g.formality,
+            )
+            for g in garments
+        ],
+    )
 
 
 def _cached_tryon(db: Session, user: User, outfit_id: int) -> TryonRender | None:

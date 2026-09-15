@@ -365,3 +365,112 @@ def test_get_tryon_is_pending_until_a_render_is_cached(
     ready = client.get(f"/outfits/{outfit['id']}/tryon", headers=_auth_headers(user))
     assert ready.json()["status"] == "ready"
     assert ready.json()["rendered_url"] == "https://fake.test/tryon/1/ready.png"
+
+
+# --- Shareable outfit links (Sprint 6) ---
+
+
+@pytest.fixture
+def _fake_share_storage(monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.outfits.storage.presigned_download_url",
+        lambda key, expires_seconds=900: f"https://fake.test/{key}",
+    )
+
+
+def test_share_creates_a_token_and_url(client, db_session) -> None:
+    user = make_user(db_session)
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    response = client.post(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["share_token"]
+    assert body["share_url"] == f"{settings.FRONTEND_ORIGIN}/shared/{body['share_token']}"
+
+
+def test_share_is_idempotent(client, db_session) -> None:
+    user = make_user(db_session)
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    first = client.post(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user)).json()
+    second = client.post(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user)).json()
+
+    assert first["share_token"] == second["share_token"]
+
+
+def test_share_404s_for_another_users_outfit(client, db_session) -> None:
+    owner = make_user(db_session)
+    other = make_user(db_session)
+    _outfit_wardrobe(db_session, owner)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(owner)).json()
+
+    response = client.post(f"/outfits/{outfit['id']}/share", headers=_auth_headers(other))
+    assert response.status_code == 404
+
+
+def test_unshare_revokes_the_link(client, db_session) -> None:
+    user = make_user(db_session)
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+    share = client.post(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user)).json()
+
+    revoke = client.delete(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user))
+    assert revoke.status_code == 204
+
+    public = client.get(f"/outfits/shared/{share['share_token']}")
+    assert public.status_code == 404
+
+
+def test_unshare_404s_for_another_users_outfit(client, db_session) -> None:
+    owner = make_user(db_session)
+    other = make_user(db_session)
+    _outfit_wardrobe(db_session, owner)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(owner)).json()
+
+    response = client.delete(f"/outfits/{outfit['id']}/share", headers=_auth_headers(other))
+    assert response.status_code == 404
+
+
+def test_unshare_on_a_never_shared_outfit_is_not_an_error(client, db_session) -> None:
+    user = make_user(db_session)
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+
+    response = client.delete(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user))
+    assert response.status_code == 204
+
+
+def test_get_shared_outfit_needs_no_auth_and_hides_owner_fields(
+    client, db_session, _fake_share_storage
+) -> None:
+    user = make_user(db_session)
+    _outfit_wardrobe(db_session, user)
+    db_session.commit()
+    outfit = client.get("/outfits/daily", headers=_auth_headers(user)).json()
+    share = client.post(f"/outfits/{outfit['id']}/share", headers=_auth_headers(user)).json()
+
+    response = client.get(f"/outfits/shared/{share['share_token']}")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["generated_for"] == outfit["generated_for"]
+    assert len(body["garments"]) == len(outfit["garment_ids"])
+    for garment in body["garments"]:
+        assert "state" not in garment
+        assert "wear_count" not in garment
+        assert "user_id" not in garment
+
+
+def test_get_shared_outfit_404s_for_an_unknown_token(client, db_session) -> None:
+    response = client.get("/outfits/shared/not-a-real-token")
+    assert response.status_code == 404
