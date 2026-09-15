@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import RequireAuth from "./components/RequireAuth";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import PackingList from "./pages/PackingList";
 import SharedOutfit from "./pages/SharedOutfit";
 import Swipe from "./pages/Swipe";
 import Upload from "./pages/Upload";
@@ -44,6 +45,14 @@ function App() {
           element={
             <RequireAuth>
               <Swipe />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/packing"
+          element={
+            <RequireAuth>
+              <PackingList />
             </RequireAuth>
           }
         />

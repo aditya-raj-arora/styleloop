@@ -3,14 +3,16 @@
 Real browser tests against the full stack — frontend + backend + Postgres +
 Redis — covering the core flows: signup/login, upload → wardrobe, daily
 outfit generate/regenerate/wear, swipe like/dislike, laundry bulk-reset,
-base-photo upload → try-on.
+base-photo upload → try-on, the Dashboard onboarding checklist for a fresh
+signup, wardrobe analytics, shareable outfit links, and the packing-list
+generator.
 
 ## Scope — what this does and doesn't cover
 
-This environment has no `GEMINI_API_KEY`, `DEEPAI_API_KEY`, `rembg`, or
-`FASHN_API_KEY` configured (all cost money / need a live account, and
-aren't worth spending on every CI run). Two consequences, both intentional
-and covered by the backend's own tests instead of here:
+This environment has no `GEMINI_API_KEY`, `DEEPAI_API_KEY`, `rembg`,
+`FASHN_API_KEY`, or `OPENWEATHER_API_KEY` configured (all cost money / need
+a live account, and aren't worth spending on every CI run). Consequences,
+all intentional and covered by the backend's own tests instead of here:
 
 - **`upload-wardrobe.spec.ts`** verifies a freshly-uploaded garment appears
   with its "Processing…" placeholder — it does *not* wait for tagging to
@@ -21,11 +23,20 @@ and covered by the backend's own tests instead of here:
   That's the real "graceful fallback" path the feature was built with (see
   `docs/rotation-scoring-design-note.md`'s Sprint 4 section), exercised for
   real rather than mocked.
+- **`packing-list.spec.ts`** runs with no forecast data (`get_forecast`
+  degrades to `[]` with no `OPENWEATHER_API_KEY`, same fallback convention
+  `get_weather` already used) — it asserts the resulting "no signal ⇒
+  suggest a layer, just in case" behavior rather than a specific
+  temperature-driven outcome.
 
-Everything else (`auth`, `outfit-flow`, `swipe`, `laundry`) logs in as
-`scripts/seed.py`'s demo user (`demo@styleloop.dev`), which is pre-seeded
-with already-tagged, `clean` garments — bypassing the async pipeline
-entirely so the rotation engine has something real to work with.
+Everything else (`auth`, `outfit-flow`, `swipe`, `laundry`,
+`wardrobe-analytics`, `share`, `packing-list`) logs in as `scripts/seed.py`'s
+demo user (`demo@styleloop.dev`), which is pre-seeded with already-tagged,
+`clean` garments — bypassing the async pipeline entirely so the rotation
+engine (and everything built on its notion of "clean, tagged garments") has
+something real to work with. `dashboard-onboarding.spec.ts` deliberately
+goes through a *fresh* signup instead, since it's testing the empty-wardrobe
+state the demo user doesn't have.
 
 ## Running locally
 

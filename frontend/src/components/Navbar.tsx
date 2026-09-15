@@ -1,4 +1,4 @@
-import { Heart, Home, LogOut, Shirt, Upload } from "lucide-react";
+import { Heart, Home, Luggage, LogOut, Shirt, Upload } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../store/useAuth";
@@ -8,6 +8,7 @@ const _LINKS = [
   { to: "/wardrobe", label: "Wardrobe", Icon: Shirt },
   { to: "/swipe", label: "Swipe outfits", Icon: Heart },
   { to: "/upload", label: "Upload garment", Icon: Upload },
+  { to: "/packing", label: "Pack for a trip", Icon: Luggage },
 ] as const;
 
 const _ICON_LINK_CLASS =

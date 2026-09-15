@@ -493,10 +493,53 @@ Scoped and landed incrementally, not all at once.
       revoke → same link 404s; type-checked, not run for real in this
       sandbox (same docker constraint as the other Sprint 6 E2E specs).
 
+### Packing-list generator ✅
+
+- [x] `services/weather.get_forecast(lat, lon)`: aggregates OpenWeatherMap's
+      free-tier 5-day/3-hour forecast into one `{date, temp_min_c,
+      temp_max_c, rain}` entry per calendar day. Same fallback convention
+      `get_weather` already established — no API key, a network error, or a
+      bad response degrade to `[]` (not an exception), and a fallback
+      result is never cached. A trip date beyond the 5-day window just has
+      no entry; that's "no signal", not an error.
+- [x] `services/packing.py::generate_packing_list` (pure, no DB — same
+      discipline as `rotation.generate_outfits`): sizes tops at 1/day,
+      bottoms at `ceil(days/2)`, shoes capped at 2, picking the
+      least-worn (`wear_count` ascending) garments first so packing also
+      helps rotate the wardrobe rather than always reaching for the same
+      favorites. No forecast signal defaults to "pack a layer" (better
+      safe than caught out after leaving) but *not* "pack rain gear"
+      (flagging rain with zero evidence would just be noise on any
+      longer-range trip). Available dresses are offered as extras — they
+      substitute for a top+bottom day but don't reduce those targets.
+      Every category reports `short_by` when the clean, tagged wardrobe
+      didn't have enough — including outerwear the user needs but owns
+      none of, a real "gap for this trip" signal, not just a cosmetic
+      count.
+- [x] `GET /packing-list?start_date&end_date[&lat&lon]` — same
+      lat/lon-optional-with-a-default-city convention as `/outfits/daily`;
+      422s on no clean/tagged garments (mirroring the daily-outfit 422),
+      400s on `end_date < start_date` or a trip over 60 days (a bad query,
+      not a real ask).
+- [x] Frontend: new `/packing` page + Navbar link — a start/end date form,
+      generated list grouped by category with a `short_by` callout per
+      category, and "🧥 bring a layer" / "☔ rain expected" badges. The
+      `Returning` date input's own `min` is bound to `Leaving`, so an
+      invalid range can't actually be submitted through the UI in the
+      first place — the backend's 400 is for direct API callers.
+- [x] Tests: 12 pure-function cases (`test_packing.py`) + 8 endpoint cases
+      (`test_packing_router.py`, scoping/validation/eligibility/forecast
+      wiring) — full suite (154 tests) + ruff clean against a real
+      Postgres. Frontend `tsc`+`vite build` clean. E2E
+      (`packing-list.spec.ts`, against the seeded demo wardrobe, no
+      `OPENWEATHER_API_KEY` in this environment so it exercises the real
+      no-forecast fallback rather than a mock): type-checked, not run for
+      real in this sandbox (same docker constraint as the other Sprint 6
+      E2E specs).
+
 ### Not started yet
 
 - [ ] Calendar/occasion-aware suggestions ("interview tomorrow").
-- [ ] Packing-list generator for trips (weather + duration aware).
 - [ ] Multi-photo garments; auto-detect duplicates.
 - [ ] Cost-per-wear (needs a purchase-price field — see above).
 

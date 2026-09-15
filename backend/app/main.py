@@ -13,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.observability import configure_logging, configure_sentry
 from app.rate_limiting import limiter
-from app.routers import auth, garments, outfits
+from app.routers import auth, garments, outfits, packing
 
 configure_logging()
 configure_sentry(service_name="api")
@@ -36,6 +36,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(garments.router)
 app.include_router(outfits.router)
+app.include_router(packing.router)
 
 
 @app.get("/health", tags=["health"])

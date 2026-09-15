@@ -303,3 +303,47 @@ export interface SharedOutfit {
 export function getSharedOutfit(token: string): Promise<SharedOutfit> {
   return apiFetch<SharedOutfit>(`/outfits/shared/${token}`);
 }
+
+// --- Packing list (Sprint 6) ---
+//
+// Mirrors backend/app/schemas/packing.py — not the frozen contract.
+
+export interface TripWeather {
+  temp_min_c: number | null;
+  temp_max_c: number | null;
+  rain: boolean;
+  // How many of the trip's days actually had forecast data (OpenWeatherMap's
+  // free tier only covers ~5 days out) — 0 doesn't mean the lookup failed.
+  days_with_forecast: number;
+}
+
+export interface PackingCategory {
+  category: string;
+  garments: Garment[];
+  // > 0 means the wardrobe didn't have enough clean, tagged garments in
+  // this category to hit the recommended count for the trip.
+  short_by: number;
+}
+
+export interface PackingList {
+  start_date: string;
+  end_date: string;
+  num_days: number;
+  weather: TripWeather;
+  needs_outerwear: boolean;
+  needs_rain_gear: boolean;
+  categories: PackingCategory[];
+}
+
+export function getPackingList(
+  startDate: string,
+  endDate: string,
+  coords?: { lat: number; lon: number },
+): Promise<PackingList> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  if (coords) {
+    params.set("lat", String(coords.lat));
+    params.set("lon", String(coords.lon));
+  }
+  return apiFetch<PackingList>(`/packing-list?${params.toString()}`);
+}
