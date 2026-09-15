@@ -81,7 +81,12 @@ export default function Swipe() {
                 type="button"
                 onClick={() => like.mutate(outfit.id)}
                 disabled={busy || like.isSuccess}
-                aria-label="Like this outfit"
+                // A hardcoded aria-label would freeze the accessible name at
+                // "Like this outfit" forever — aria-label takes precedence
+                // over visible text content, so a screen reader would never
+                // learn the state actually changed even though the label
+                // visibly flips to "Liked!". Mirror the visible text instead.
+                aria-label={like.isSuccess ? "Liked this outfit" : "Like this outfit"}
                 className="bg-green-500 hover:bg-green-600 px-6 py-2 rounded text-white disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
               >
                 {like.isSuccess ? "Liked!" : "Like"}

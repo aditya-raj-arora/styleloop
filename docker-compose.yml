@@ -53,7 +53,11 @@ services:
   # STORAGE_ENDPOINT_URL config (Cloudflare R2 in prod uses the same code path).
   # Not started by a plain `docker compose up`; opt in with `--profile minio`.
   minio:
-    image: minio/minio:latest
+    # MinIO removed its images from Docker Hub (Sept 2026) - minio/minio now
+    # 401s on anonymous pulls with a misleading "access denied"/"docker
+    # login" message. quay.io is their current official distribution,
+    # same tags.
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     profiles: ["minio"]
     command: server /data --console-address ":9001"
