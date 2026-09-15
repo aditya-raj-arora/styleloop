@@ -211,3 +211,88 @@ def test_reset_laundry_with_nothing_to_reset_returns_empty_list() -> None:
     response = client.post("/garments/laundry/reset", headers=_auth(token))
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_analytics_on_an_empty_wardrobe() -> None:
+    token = _signup()
+    response = client.get("/garments/analytics", headers=_auth(token))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_garments"] == 0
+    assert body["most_worn"] == []
+    assert body["never_worn"] == []
+    assert sorted(body["category_gaps"]) == ["bottom", "dress", "outerwear", "shoes", "top"]
+
+
+def test_analytics_most_worn_is_ranked_by_wear_count_desc() -> None:
+    token = _signup()
+    low = _upload(token).json()
+    high = _upload(token).json()
+
+    for _ in range(3):
+        client.post(f"/garments/{high['id']}/state", json={"state": "worn"}, headers=_auth(token))
+    client.post(f"/garments/{low['id']}/state", json={"state": "worn"}, headers=_auth(token))
+
+    body = client.get("/garments/analytics", headers=_auth(token)).json()
+
+    assert [g["id"] for g in body["most_worn"]] == [high["id"], low["id"]]
+    assert body["never_worn"] == []
+    assert body["worn_count"] == 2
+
+
+def test_analytics_never_worn_excludes_anything_with_wear_count() -> None:
+    token = _signup()
+    worn = _upload(token).json()
+    unworn = _upload(token).json()
+    client.post(f"/garments/{worn['id']}/state", json={"state": "worn"}, headers=_auth(token))
+
+    body = client.get("/garments/analytics", headers=_auth(token)).json()
+
+    assert [g["id"] for g in body["never_worn"]] == [unworn["id"]]
+
+
+def test_analytics_category_gaps_close_as_clean_tagged_garments_are_added() -> None:
+    token = _signup()
+    top = _upload(token).json()
+    client.patch(
+        f"/garments/{top['id']}/tags", json={"category": "top"}, headers=_auth(token)
+    )
+
+    body = client.get("/garments/analytics", headers=_auth(token)).json()
+
+    assert "top" not in body["category_gaps"]
+    assert "bottom" in body["category_gaps"]
+
+
+def test_analytics_category_gaps_ignore_untagged_or_non_clean_garments() -> None:
+    token = _signup()
+    _upload(token)  # never tagged, so its category stays None
+
+    laundry = _upload(token).json()
+    client.patch(
+        f"/garments/{laundry['id']}/tags", json={"category": "shoes"}, headers=_auth(token)
+    )
+    client.post(
+        f"/garments/{laundry['id']}/state", json={"state": "laundry"}, headers=_auth(token)
+    )
+
+    body = client.get("/garments/analytics", headers=_auth(token)).json()
+
+    # Tagged but in laundry, and untagged clean — neither counts toward
+    # closing the "shoes" gap.
+    assert "shoes" in body["category_gaps"]
+
+
+def test_analytics_is_scoped_to_the_current_user() -> None:
+    token_a = _signup()
+    token_b = _signup()
+    garment_a = _upload(token_a).json()
+    client.post(
+        f"/garments/{garment_a['id']}/state", json={"state": "worn"}, headers=_auth(token_a)
+    )
+
+    body_b = client.get("/garments/analytics", headers=_auth(token_b)).json()
+
+    assert body_b["total_garments"] == 0
+    assert body_b["most_worn"] == []

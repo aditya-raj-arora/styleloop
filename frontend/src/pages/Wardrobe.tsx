@@ -2,9 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import type { Garment, GarmentState } from "../api/client";
-import { listGarments, resetLaundry, setGarmentState } from "../api/client";
+import { getWardrobeAnalytics, listGarments, resetLaundry, setGarmentState } from "../api/client";
 import GarmentCard from "../components/GarmentCard";
 import Navbar from "../components/Navbar";
+import WardrobeAnalyticsPanel from "../components/WardrobeAnalyticsPanel";
 import WardrobeBackground from "../components/wardrobeBackground";
 import { useIsNight } from "../hooks/useIsNight";
 
@@ -19,6 +20,7 @@ const _FILTERS: { value: Filter; label: string }[] = [
 
 export default function Wardrobe() {
   const [filter, setFilter] = useState<Filter>("all");
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const queryClient = useQueryClient();
   // WardrobeBackground goes dark at night (moon + stars) — this page's text
   // was hardcoded for its pale daytime gradients only, so it went nearly
@@ -59,6 +61,16 @@ export default function Wardrobe() {
   const laundryCount = garments?.filter((g) => g.state === "laundry").length ?? 0;
   const visible = garments?.filter((g) => filter === "all" || g.state === filter);
 
+  // Only fetched once the user actually opens the panel — it's not needed
+  // for the grid itself and every field it needs is already derivable, but
+  // computing it here would duplicate the backend's own definition of
+  // "gap" and "most worn" instead of trusting one source of truth.
+  const { data: analytics, isLoading: analyticsLoading } = useQuery({
+    queryKey: ["garments", "analytics"],
+    queryFn: getWardrobeAnalytics,
+    enabled: showAnalytics,
+  });
+
   return (
     <WardrobeBackground>
       <div className="p-4 sm:p-6 pb-24">
@@ -71,6 +83,32 @@ export default function Wardrobe() {
             ? `${garments.length} item${garments.length === 1 ? "" : "s"} in your closet.`
             : "Your uploaded clothes, all in one place."}
         </p>
+
+        {garments && garments.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAnalytics((shown) => !shown)}
+            aria-expanded={showAnalytics}
+            className={`mb-4 px-4 py-1.5 rounded-full text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${
+              isNight
+                ? "bg-white/20 text-white hover:bg-white/30 focus-visible:outline-white"
+                : "bg-white/60 text-gray-700 hover:bg-white/90 focus-visible:outline-gray-800"
+            }`}
+          >
+            {showAnalytics ? "Hide analytics ▲" : "Wardrobe analytics ▼"}
+          </button>
+        )}
+
+        {showAnalytics && (
+          <div aria-live="polite">
+            {analyticsLoading && (
+              <p className={`mb-6 ${isNight ? "text-white/80" : "text-gray-600"}`}>
+                Crunching the numbers…
+              </p>
+            )}
+            {analytics && <WardrobeAnalyticsPanel analytics={analytics} isNight={isNight} />}
+          </div>
+        )}
 
         {garments && garments.length > 0 && (
           <div

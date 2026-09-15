@@ -51,3 +51,21 @@ class StateUpdate(BaseModel):
     """Laundry state transition. `state` is one of "clean" | "worn" | "laundry"."""
 
     state: str
+
+
+class WardrobeAnalyticsOut(BaseModel):
+    """`GET /garments/analytics` — a snapshot of how the wardrobe is actually
+    being used, not the frozen contract (safe to extend/change freely)."""
+
+    total_garments: int
+    clean_count: int
+    worn_count: int
+    laundry_count: int
+
+    # Highest wear_count first, capped — see routers/garments.py.
+    most_worn: list[GarmentOut]
+    # wear_count == 0, oldest upload first (longest sitting unused), capped.
+    never_worn: list[GarmentOut]
+    # Subset of {"top", "bottom", "dress", "outerwear", "shoes"} with zero
+    # clean, tagged garments — mirrors services/rotation.py's categories.
+    category_gaps: list[str]

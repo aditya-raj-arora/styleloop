@@ -416,10 +416,56 @@ open, not standing up a first deploy — the app has been live since Sprint 1.
 
 ---
 
+## Sprint 6 — Post-launch: wardrobe insight + reach
+
+Sprint 5's core beta-hardening milestone is done (custom domain and the
+performance pass are the two items still open there, both intentionally
+blocked on things a coding session can't do alone — buying/pointing a
+domain, and real production traffic to optimize against). Sprint 6 picks up
+the backlog: features that make the wardrobe more useful once it's populated,
+and ways to get the app in front of people other than its one beta user.
+Scoped and landed incrementally, not all at once.
+
+### Wardrobe analytics ✅
+
+- [x] `GET /garments/analytics` (`WardrobeAnalyticsOut` —
+      `backend/app/schemas/garment.py`, deliberately *not* the frozen
+      `GarmentOut` contract): total/clean/worn/laundry counts, most-worn
+      (top 5 by `wear_count`), never-worn (oldest-upload-first, capped at
+      20), and `category_gaps` — which of top/bottom/dress/outerwear/shoes
+      has zero *clean, tagged* garments, mirroring
+      `rotation._base_combinations`'s own definition of a usable garment
+      (kept as a separate literal tuple rather than importing rotation's
+      private constants — analytics has no reason to couple to the engine's
+      internals).
+      **Not included:** cost-per-wear — the backlog item's other half —
+      because nothing in the schema tracks a purchase price yet; that's a
+      real schema change (new column + migration + an upload/tag-editing UI
+      field), deliberately left for its own PR rather than folded in here.
+- [x] Wardrobe page: collapsible "Wardrobe analytics" panel
+      (`WardrobeAnalyticsPanel`, `frontend/src/components/`) — closed by
+      default so it doesn't compete with the grid on first load, fetched
+      only once opened (`enabled: showAnalytics`).
+- [x] Tests: `test_garments.py` covers an empty wardrobe, most-worn
+      ranking, never-worn exclusion, category gaps opening/closing as
+      garments are tagged, and that laundry-state or untagged garments
+      don't count toward closing a gap — all scoped per-user. E2E
+      (`wardrobe-analytics.spec.ts`) covers the panel against the seeded
+      demo wardrobe (real wear-count spread, every category covered so the
+      gap-empty path is exercised too) — type-checked but not run for real
+      in this sandbox (no docker daemon available for the Postgres/
+      Redis/MinIO stack `e2e/README.md` describes; runs for real in CI).
+
+### Not started yet
+
+- [ ] Calendar/occasion-aware suggestions ("interview tomorrow").
+- [ ] Shareable outfit links; social/lookbook.
+- [ ] Packing-list generator for trips (weather + duration aware).
+- [ ] Multi-photo garments; auto-detect duplicates.
+- [ ] Cost-per-wear (needs a purchase-price field — see above).
+
+---
+
 ## Backlog / later (not yet scheduled)
 
-- Calendar/occasion-aware suggestions ("interview tomorrow").
-- Shareable outfit links; social/lookbook.
-- Wardrobe analytics (cost-per-wear, most/least worn, gaps).
-- Packing-list generator for trips (weather + duration aware).
-- Multi-photo garments; auto-detect duplicates.
+- Whatever Sprint 6 doesn't get to.

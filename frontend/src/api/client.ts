@@ -188,6 +188,22 @@ export function resetLaundry(): Promise<Garment[]> {
   return apiFetch<Garment[]>("/garments/laundry/reset", { method: "POST" });
 }
 
+// Mirrors backend/app/schemas/garment.py::WardrobeAnalyticsOut — not the
+// frozen contract, safe to extend.
+export interface WardrobeAnalytics {
+  total_garments: number;
+  clean_count: number;
+  worn_count: number;
+  laundry_count: number;
+  most_worn: Garment[];
+  never_worn: Garment[];
+  category_gaps: string[];
+}
+
+export function getWardrobeAnalytics(): Promise<WardrobeAnalytics> {
+  return apiFetch<WardrobeAnalytics>("/garments/analytics");
+}
+
 // --- Outfits (rotation engine, Sprint 2) ---
 //
 // `lat`/`lon` come from the browser's geolocation (see useGeolocation); the

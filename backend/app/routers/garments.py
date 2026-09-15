@@ -23,7 +23,7 @@ from app.dependencies import get_current_user
 from app.models.garment import DEFAULT_STATE, Garment
 from app.models.user import User
 from app.queue import get_queue
-from app.schemas.garment import GarmentOut, StateUpdate, TagUpdate
+from app.schemas.garment import GarmentOut, StateUpdate, TagUpdate, WardrobeAnalyticsOut
 from app.services import storage
 
 router = APIRouter(prefix="/garments", tags=["garments"])
@@ -35,6 +35,14 @@ _CONTENT_TYPE_EXTENSIONS = {
     "image/png": ".png",
     "image/webp": ".webp",
 }
+
+# Mirrors services/rotation.py's _TOP/_BOTTOM/_DRESS/_OUTERWEAR/_SHOES — kept
+# as a separate literal tuple rather than importing those (private, and
+# rotation.py has no reason to know analytics exists) since this is purely
+# informational, not a candidate-generation input.
+_ESSENTIAL_CATEGORIES = ("top", "bottom", "dress", "outerwear", "shoes")
+_MOST_WORN_LIMIT = 5
+_NEVER_WORN_LIMIT = 20
 
 
 def _garment_out(garment: Garment) -> GarmentOut:
@@ -137,6 +145,41 @@ def reset_laundry(
     for garment in garments:
         db.refresh(garment)
     return [_garment_out(g) for g in garments]
+
+
+@router.get("/analytics", response_model=WardrobeAnalyticsOut)
+def get_analytics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WardrobeAnalyticsOut:
+    """A snapshot of how the wardrobe is actually being used: what gets worn,
+    what's sitting untouched, and which essential categories are missing
+    entirely. Computed from the already-loaded `wear_count`/`category`/`state`
+    fields — no new columns, no cost tracking (that needs a purchase-price
+    field nothing here collects yet)."""
+    garments = db.query(Garment).filter(Garment.user_id == current_user.id).all()
+
+    most_worn = sorted(
+        (g for g in garments if g.wear_count > 0), key=lambda g: g.wear_count, reverse=True
+    )[:_MOST_WORN_LIMIT]
+    never_worn = sorted(
+        (g for g in garments if g.wear_count == 0), key=lambda g: g.created_at
+    )[:_NEVER_WORN_LIMIT]
+
+    clean_tagged_categories = {
+        g.category for g in garments if g.state == "clean" and g.category is not None
+    }
+    category_gaps = [c for c in _ESSENTIAL_CATEGORIES if c not in clean_tagged_categories]
+
+    return WardrobeAnalyticsOut(
+        total_garments=len(garments),
+        clean_count=sum(1 for g in garments if g.state == "clean"),
+        worn_count=sum(1 for g in garments if g.state == "worn"),
+        laundry_count=sum(1 for g in garments if g.state == "laundry"),
+        most_worn=[_garment_out(g) for g in most_worn],
+        never_worn=[_garment_out(g) for g in never_worn],
+        category_gaps=category_gaps,
+    )
 
 
 @router.get("/{garment_id}", response_model=GarmentOut)
