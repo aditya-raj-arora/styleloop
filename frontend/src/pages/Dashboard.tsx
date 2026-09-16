@@ -62,13 +62,24 @@ export default function Dashboard() {
 
   const noWardrobeYet = error instanceof ApiError && error.status === 422;
 
-  // Only needed to drive the first-run checklist below — don't fetch it
-  // once the user already has a daily outfit.
+  // FIX 1: Always fetch garments when we have an outfit (so we can render its
+  // items), in addition to the existing case where the checklist needs them.
+  // The query key matches the Wardrobe page's, so React Query shares the cache.
   const { data: garments, isLoading: garmentsLoading } = useQuery({
     queryKey: ["garments"],
     queryFn: listGarments,
-    enabled: noWardrobeYet,
+    enabled: noWardrobeYet || Boolean(outfit),
   });
+
+  // FIX 2: Derive the actual garment objects for this outfit from the list.
+  // The outfit only carries garment_ids; the full objects (with signed
+  // processed_url / image_url) live on the garments list.
+  const outfitGarments =
+    outfit && garments
+      ? outfit.garment_ids
+          .map((id) => garments.find((g) => g.id === id))
+          .filter((g): g is NonNullable<typeof g> => g !== undefined)
+      : [];
 
   const tryon = useTryon(outfit?.id);
 
@@ -91,16 +102,12 @@ export default function Dashboard() {
 
   return (
     <AnimatedBackground>
-
       <div className="p-5 sm:p-8 pb-24">
-
         <h1 className="text-3xl sm:text-5xl font-bold text-white">
           {greeting}
         </h1>
 
-        <p className="text-white/80 mt-2">
-          Welcome back to VogueVault
-        </p>
+        <p className="text-white/80 mt-2">Welcome back to VogueVault</p>
 
         <input
           ref={photoInputRef}
@@ -122,7 +129,11 @@ export default function Dashboard() {
             disabled={uploadPhoto.isPending}
             className="text-amber-300 font-medium underline disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white rounded"
           >
-            {uploadPhoto.isPending ? "Uploading…" : user?.base_photo_url ? "Update" : "Upload"}
+            {uploadPhoto.isPending
+              ? "Uploading…"
+              : user?.base_photo_url
+              ? "Update"
+              : "Upload"}
           </button>
         </div>
 
@@ -130,7 +141,6 @@ export default function Dashboard() {
           className="mt-8 sm:mt-12 min-h-[320px] sm:min-h-[400px] rounded-3xl border-2 border-dashed border-white/40 flex flex-col justify-center items-center gap-4 p-6 text-center"
           aria-live="polite"
         >
-
           {(locating || isLoading) && (
             <p className="text-white/70">Putting today's outfit together…</p>
           )}
@@ -153,9 +163,31 @@ export default function Dashboard() {
             <>
               <h2 className="text-2xl text-white">Today's Outfit</h2>
               <p className="text-white/60 text-sm">
-                {outfit.garment_ids.length} item{outfit.garment_ids.length === 1 ? "" : "s"}
+                {outfit.garment_ids.length} item
+                {outfit.garment_ids.length === 1 ? "" : "s"}
+
                 {outfit.score !== null && ` · score ${outfit.score.toFixed(2)}`}
               </p>
+
+              {/* FIX 3: Render the outfit's garments. */}
+              {outfitGarments.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-3 mt-2">
+                  {outfitGarments.map((g) => (
+                    <div key={g.id} className="w-32 sm:w-40">
+                      <img
+                        src={g.processed_url ?? g.image_url}
+                        alt={`${g.category ?? "Garment"}${
+                          g.colors?.[0] ? ` — ${g.colors[0]}` : ""
+                        }`}
+                        className="w-full aspect-square object-cover rounded-2xl shadow-md bg-white/10"
+                      />
+                      <p className="text-white/70 text-xs mt-1 text-center capitalize">
+                        {g.category ?? "Untagged"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="flex flex-wrap justify-center gap-3 mt-2">
                 <button
@@ -191,7 +223,9 @@ export default function Dashboard() {
               )}
 
               {tryon.status === "pending" && (
-                <p className="text-white/70 text-sm mt-2">Rendering on your photo…</p>
+                <p className="text-white/70 text-sm mt-2">
+                  Rendering on your photo…
+                </p>
               )}
 
               {tryon.status === "ready" && tryon.imageUrl && (
@@ -218,13 +252,10 @@ export default function Dashboard() {
               )}
             </>
           )}
-
         </div>
-
       </div>
 
       <Navbar />
-
     </AnimatedBackground>
   );
 }
